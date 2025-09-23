@@ -1,0 +1,34 @@
+import { SUPPORTED_FILE_TYPES, MAX_FILE_SIZE } from './constants';
+
+export const validateFile = (file: File): { isValid: boolean; error?: string } => {
+  if (!file) {
+    return { isValid: false, error: 'No file provided' };
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return { isValid: false, error: 'File size exceeds 10MB limit' };
+  }
+
+  if (!Object.keys(SUPPORTED_FILE_TYPES).includes(file.type)) {
+    return { isValid: false, error: 'Unsupported file type. Please upload PDF, DOC, or DOCX files.' };
+  }
+
+  return { isValid: true };
+};
+
+export const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+export const cleanText = (text: string): string => {
+  return text
+    .replace(/\s+/g, ' ') // Replace multiple whitespace with single space
+    .replace(/\n{3,}/g, '\n\n') // Replace 3+ newlines with double newline
+    .trim();
+};
