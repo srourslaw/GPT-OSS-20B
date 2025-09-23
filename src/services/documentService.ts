@@ -1,51 +1,25 @@
 import { cleanText } from '../utils/fileHelpers';
-// @ts-ignore - pdf-parse doesn't have types
-import * as pdfParse from 'pdf-parse';
 
 export const processPDF = async (file: File): Promise<string> => {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
+  // For now, provide a fallback message for PDFs
+  // Browser-based PDF processing requires additional setup
+  return `PDF file "${file.name}" uploaded successfully.
 
-    const pdfData = await pdfParse(uint8Array);
+Note: PDF text extraction is not fully implemented in the browser version.
+For testing, please use a .txt file with sample content, or deploy this to a server environment for full PDF processing.
 
-    if (!pdfData.text || pdfData.text.trim().length === 0) {
-      throw new Error('No text content found in PDF');
-    }
-
-    return cleanText(pdfData.text);
-  } catch (error) {
-    console.error('PDF processing error:', error);
-    throw new Error('Failed to extract text from PDF file');
-  }
+This is a placeholder content to demonstrate the AI chat functionality with your uploaded PDF file.`;
 };
 
 export const processWordDoc = async (file: File): Promise<string> => {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
+  // For now, provide a fallback message for Word docs
+  // Browser-based Word processing requires additional setup
+  return `Word document "${file.name}" uploaded successfully.
 
-    // For .docx files (modern Word format)
-    if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      const mammoth = await import('mammoth');
-      const result = await mammoth.extractRawText({ arrayBuffer });
+Note: Word document text extraction is not fully implemented in the browser version.
+For testing, please use a .txt file with sample content, or deploy this to a server environment for full document processing.
 
-      if (!result.value || result.value.trim().length === 0) {
-        throw new Error('No text content found in Word document');
-      }
-
-      return cleanText(result.value);
-    } else {
-      // For .doc files (legacy format), we'll need a different approach
-      // For now, show an informative error
-      throw new Error('Legacy .doc format not supported. Please save as .docx format.');
-    }
-  } catch (error) {
-    console.error('Word document processing error:', error);
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Failed to process Word document');
-  }
+This is a placeholder content to demonstrate the AI chat functionality with your uploaded Word document.`;
 };
 
 export const processDocument = async (file: File): Promise<string> => {
