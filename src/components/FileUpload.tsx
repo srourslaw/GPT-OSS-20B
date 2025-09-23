@@ -96,7 +96,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
           ref={fileInputRef}
           type="file"
           className="hidden"
-          accept=".pdf,.doc,.docx"
+          accept=".pdf,.doc,.docx,.txt"
           onChange={handleChange}
         />
 
@@ -118,7 +118,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
               </button>
             </p>
             <p className="text-xs text-gray-500">
-              Supports PDF, DOC, and DOCX files up to 10MB
+              Supports PDF, DOC, DOCX, and TXT files up to 10MB
             </p>
           </div>
         )}
