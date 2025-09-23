@@ -6,8 +6,8 @@ export const AI_MODELS = [
   },
   {
     id: 'gpt-oss-20b',
-    name: 'GPT-OSS-20B',
-    description: 'Open source GPT model with 20B parameters'
+    name: 'GPT-OSS-20B (Ollama)',
+    description: 'Local GPT-OSS-20B model running via Ollama'
   }
 ];
 

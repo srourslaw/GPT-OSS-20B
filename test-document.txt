@@ -1,0 +1,11 @@
+Test Document for GPT-OSS-20B Dashboard
+
+This is a test document to verify the AI integration functionality.
+
+Key Information:
+- Project: GPT-OSS-20B Dashboard
+- Technology Stack: React, TypeScript, Vite, Tailwind CSS
+- AI Models: Gemini AI and GPT-OSS-20B via Ollama
+- Features: Document upload, text extraction, AI chat interface
+
+The dashboard allows users to upload documents and ask questions about the content using different AI models.
