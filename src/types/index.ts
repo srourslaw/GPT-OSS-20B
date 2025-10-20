@@ -5,12 +5,22 @@ export interface Document {
   uploadedAt: Date;
 }
 
+export interface ChartData {
+  type: 'line' | 'bar' | 'pie';
+  title?: string;
+  data: any[];
+  xKey?: string;
+  yKeys?: string[];
+  colors?: string[];
+}
+
 export interface ChatMessage {
   id: string;
   text: string;
   isUser: boolean;
   timestamp: Date;
   aiModel?: string;
+  chartData?: ChartData[];
 }
 
 export interface AIModel {
@@ -23,4 +33,5 @@ export interface AIResponse {
   text: string;
   model: string;
   timestamp: Date;
+  chartData?: ChartData[];
 }

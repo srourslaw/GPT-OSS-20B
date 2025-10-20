@@ -1,4 +1,6 @@
 import { cleanText } from '../utils/fileHelpers';
+import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 
 const readFileAsArrayBuffer = async (file: File): Promise<ArrayBuffer> => {
   return new Promise((resolve, reject) => {
@@ -218,6 +220,131 @@ You can still ask questions about the document based on its filename, or try:
   }
 };
 
+export const processExcel = async (file: File): Promise<string> => {
+  console.log('Processing Excel:', file.name);
+
+  try {
+    const arrayBuffer = await readFileAsArrayBuffer(file);
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+    let content = `Excel File: ${file.name}\n\n`;
+
+    // Process each sheet
+    workbook.SheetNames.forEach((sheetName, index) => {
+      const worksheet = workbook.Sheets[sheetName];
+
+      // Convert to JSON format for better structure
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      content += `Sheet ${index + 1}: ${sheetName}\n`;
+      content += `Rows: ${jsonData.length}\n\n`;
+
+      // Format as table
+      if (jsonData.length > 0) {
+        // Get headers (first row)
+        const headers = jsonData[0] as any[];
+        content += headers.join(' | ') + '\n';
+        content += headers.map(() => '---').join(' | ') + '\n';
+
+        // Add data rows (limit to first 100 rows for performance)
+        const maxRows = Math.min(jsonData.length, 100);
+        for (let i = 1; i < maxRows; i++) {
+          const row = jsonData[i] as any[];
+          content += row.join(' | ') + '\n';
+        }
+
+        if (jsonData.length > 100) {
+          content += `\n[${jsonData.length - 100} more rows...]\n`;
+        }
+      }
+      content += '\n';
+    });
+
+    return content;
+  } catch (error) {
+    console.error('Excel processing error:', error);
+    throw new Error(`Failed to process Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
+export const processCSV = async (file: File): Promise<string> => {
+  console.log('Processing CSV:', file.name);
+
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      complete: (results) => {
+        try {
+          let content = `CSV File: ${file.name}\n`;
+          content += `Rows: ${results.data.length}\n\n`;
+
+          if (results.data.length > 0) {
+            // Get headers (first row)
+            const headers = results.data[0] as any[];
+            content += headers.join(' | ') + '\n';
+            content += headers.map(() => '---').join(' | ') + '\n';
+
+            // Add data rows (limit to first 100 rows)
+            const maxRows = Math.min(results.data.length, 100);
+            for (let i = 1; i < maxRows; i++) {
+              const row = results.data[i] as any[];
+              content += row.join(' | ') + '\n';
+            }
+
+            if (results.data.length > 100) {
+              content += `\n[${results.data.length - 100} more rows...]\n`;
+            }
+          }
+
+          resolve(content);
+        } catch (error) {
+          reject(new Error(`Failed to format CSV: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        }
+      },
+      error: (error) => {
+        reject(new Error(`Failed to parse CSV: ${error.message}`));
+      }
+    });
+  });
+};
+
+export const processJSON = async (file: File): Promise<string> => {
+  console.log('Processing JSON:', file.name);
+
+  try {
+    const text = await file.text();
+    const jsonData = JSON.parse(text);
+
+    let content = `JSON File: ${file.name}\n\n`;
+
+    // Pretty print JSON with indentation
+    const prettyJson = JSON.stringify(jsonData, null, 2);
+
+    // If JSON is too large, truncate it
+    if (prettyJson.length > 10000) {
+      content += prettyJson.substring(0, 10000);
+      content += `\n\n[JSON truncated - ${prettyJson.length - 10000} more characters...]\n`;
+      content += '\nSummary:\n';
+
+      // Add summary info
+      if (Array.isArray(jsonData)) {
+        content += `- Array with ${jsonData.length} items\n`;
+        if (jsonData.length > 0) {
+          content += `- First item keys: ${Object.keys(jsonData[0]).join(', ')}\n`;
+        }
+      } else if (typeof jsonData === 'object') {
+        content += `- Object with keys: ${Object.keys(jsonData).join(', ')}\n`;
+      }
+    } else {
+      content += prettyJson;
+    }
+
+    return content;
+  } catch (error) {
+    console.error('JSON processing error:', error);
+    throw new Error(`Failed to process JSON file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
 export const processDocument = async (file: File): Promise<string> => {
   let content = '';
 
@@ -228,6 +355,17 @@ export const processDocument = async (file: File): Promise<string> => {
     file.type === 'application/msword'
   ) {
     content = await processWordDoc(file);
+  } else if (
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.type === 'application/vnd.ms-excel' ||
+    file.name.endsWith('.xlsx') ||
+    file.name.endsWith('.xls')
+  ) {
+    content = await processExcel(file);
+  } else if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+    content = await processCSV(file);
+  } else if (file.type === 'application/json' || file.name.endsWith('.json')) {
+    content = await processJSON(file);
   } else {
     // For plain text files or unsupported formats, try to read as text
     content = await file.text();

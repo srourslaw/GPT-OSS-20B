@@ -6,11 +6,19 @@ export const validateFile = (file: File): { isValid: boolean; error?: string } =
   }
 
   if (file.size > MAX_FILE_SIZE) {
-    return { isValid: false, error: 'File size exceeds 10MB limit' };
+    return { isValid: false, error: 'File size exceeds 50MB limit' };
   }
 
-  if (!Object.keys(SUPPORTED_FILE_TYPES).includes(file.type)) {
-    return { isValid: false, error: 'Unsupported file type. Please upload PDF, DOC, or DOCX files.' };
+  // Check file type by MIME type or file extension
+  const isValidType = Object.keys(SUPPORTED_FILE_TYPES).includes(file.type) ||
+    file.name.endsWith('.xlsx') ||
+    file.name.endsWith('.xls') ||
+    file.name.endsWith('.csv') ||
+    file.name.endsWith('.json') ||
+    file.name.endsWith('.txt');
+
+  if (!isValidType) {
+    return { isValid: false, error: 'Unsupported file type. Please upload PDF, Word, Excel, CSV, JSON, or TXT files.' };
   }
 
   return { isValid: true };

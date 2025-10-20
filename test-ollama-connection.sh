@@ -9,7 +9,7 @@ if curl -s http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
     echo "✅ Ollama server is running"
 else
     echo "❌ Ollama server is not running"
-    echo "   Start with: export OLLAMA_MODELS='/Volumes/LaCie 1TB/GPT-OSS-20B' && ollama serve"
+    echo "   Start with: export OLLAMA_MODELS=~/AI-Models/GPT-OSS-20B && ollama serve"
     exit 1
 fi
 

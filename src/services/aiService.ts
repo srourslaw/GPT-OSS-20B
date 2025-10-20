@@ -1,6 +1,38 @@
-import { AIResponse } from '../types';
+import { AIResponse, ChartData } from '../types';
 import { geminiClient, gptOSSClient } from './api';
-import { MAX_CONTEXT_LENGTH, REQUEST_TIMEOUT } from '../utils/constants';
+import { REQUEST_TIMEOUT } from '../utils/constants';
+
+// Parse chart data from AI response (supports multiple charts)
+export const parseChartData = (text: string): { text: string; chartData?: ChartData[] } => {
+  const chartRegex = /```chart\s*([\s\S]*?)```/g;
+  const matches = [...text.matchAll(chartRegex)];
+
+  if (matches.length === 0) {
+    return { text };
+  }
+
+  const charts: ChartData[] = [];
+  let cleanText = text;
+
+  for (const match of matches) {
+    try {
+      const chartJson = match[1].trim();
+      const chartData = JSON.parse(chartJson) as ChartData;
+      charts.push(chartData);
+
+      // Remove this chart block from the text
+      cleanText = cleanText.replace(match[0], '').trim();
+    } catch (error) {
+      console.error('Failed to parse chart data:', error);
+      // Continue parsing other charts even if one fails
+    }
+  }
+
+  return {
+    text: cleanText,
+    chartData: charts.length > 0 ? charts : undefined
+  };
+};
 
 interface GeminiRequest {
   contents: {
@@ -27,20 +59,77 @@ interface GPTOSSResponse {
   done: boolean;
 }
 
-export const formatPrompt = (userQuestion: string, documentContent: string): string => {
+export const formatPrompt = (
+  userQuestion: string,
+  documentContent: string,
+  conversationHistory?: string,
+  maxContextLength: number = 32000
+): string => {
   // Truncate document content if it's too long
-  const truncatedContent = documentContent.length > MAX_CONTEXT_LENGTH
-    ? documentContent.substring(0, MAX_CONTEXT_LENGTH) + '...'
+  const truncatedContent = documentContent.length > maxContextLength
+    ? documentContent.substring(0, maxContextLength) + '...'
     : documentContent;
 
-  return `Based on the following document content, please answer the user's question.
+  return `You are an advanced AI data analyst and document processing expert powered by GPT-OSS-20B. You excel at:
+- Deep analysis of structured and unstructured data
+- Creating insightful visualizations and charts
+- Identifying patterns, trends, and anomalies
+- Performing complex calculations and statistical analysis
+- Providing actionable insights and recommendations
+- Understanding context from previous conversation
 
-Document Content:
+DOCUMENT CONTEXT:
 ${truncatedContent}
+${conversationHistory ? `\nCONVERSATION HISTORY:\n${conversationHistory}\n` : ''}
 
-User Question: ${userQuestion}
+CURRENT QUESTION: ${userQuestion}
 
-Please provide a helpful and accurate answer based on the document content. If the answer cannot be found in the document, please say so.`;
+ANALYSIS GUIDELINES:
+- Provide detailed, accurate answers with specific data points
+- Use the conversation history to understand context and provide coherent responses
+- For tabular data (Excel/CSV): Analyze rows, columns, patterns, and relationships
+- For numerical data: Perform calculations, identify trends, generate statistics
+- For JSON data: Navigate nested structures and extract meaningful insights
+- For text documents: Summarize key points, extract relevant information
+- Always cite specific numbers, dates, or facts from the document
+- If data is insufficient, clearly state what's missing
+
+CRITICAL CHART FORMATTING RULES:
+When the user asks for charts, graphs, plots, or visualizations, you MUST wrap each chart JSON in triple backticks with the word "chart":
+
+\`\`\`chart
+{
+  "type": "line",
+  "title": "Chart Title",
+  "data": [{"name": "A", "value": 10}],
+  "xKey": "name",
+  "yKeys": ["value"]
+}
+\`\`\`
+
+MANDATORY FORMAT - Charts will NOT render without the \`\`\`chart wrapper!
+
+Examples of CORRECT formatting:
+
+For a line chart, you MUST write:
+\`\`\`chart
+{"type": "line", "title": "Sales Trend", "data": [{"month": "Jan", "sales": 100}, {"month": "Feb", "sales": 150}], "xKey": "month", "yKeys": ["sales"]}
+\`\`\`
+
+For a bar chart, you MUST write:
+\`\`\`chart
+{"type": "bar", "title": "Comparison", "data": [{"category": "A", "value1": 50, "value2": 70}], "xKey": "category", "yKeys": ["value1", "value2"]}
+\`\`\`
+
+For a pie chart, you MUST write:
+\`\`\`chart
+{"type": "pie", "title": "Distribution", "data": [{"name": "Category A", "value": 30}, {"name": "Category B", "value": 70}]}
+\`\`\`
+
+WRONG (will not render): Just the JSON without \`\`\`chart wrapper
+RIGHT (will render): JSON wrapped in \`\`\`chart ... \`\`\`
+
+You can include multiple charts in one response, but each chart MUST have its own \`\`\`chart wrapper.`;
 };
 
 export const handleGeminiRequest = async (prompt: string): Promise<string> => {
@@ -60,7 +149,7 @@ export const handleGeminiRequest = async (prompt: string): Promise<string> => {
 
     // Use direct fetch for Gemini API as it has a different URL structure
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -147,9 +236,11 @@ export const handleGPTOSSRequest = async (prompt: string): Promise<string> => {
 export const sendMessage = async (
   message: string,
   documentContext: string,
-  model: string
+  model: string,
+  conversationHistory?: string,
+  maxContextLength: number = 32000
 ): Promise<AIResponse> => {
-  const prompt = formatPrompt(message, documentContext);
+  const prompt = formatPrompt(message, documentContext, conversationHistory, maxContextLength);
 
   let responseText: string;
 
@@ -162,10 +253,14 @@ export const sendMessage = async (
       throw new Error(`Unsupported AI model: ${model}`);
     }
 
+    // Parse chart data from response
+    const { text: cleanText, chartData } = parseChartData(responseText);
+
     return {
-      text: responseText,
+      text: cleanText,
       model: model,
-      timestamp: new Date()
+      timestamp: new Date(),
+      chartData
     };
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : 'AI service error');

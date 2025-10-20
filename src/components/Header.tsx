@@ -10,16 +10,23 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ selectedModel, onModelChange }) => {
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
-      <div className="container mx-auto px-4 py-4">
+    <header className="bg-white shadow-md border-b border-gray-200 backdrop-blur-sm">
+      <div className="container mx-auto px-4 py-5">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">GPT-OSS-20B Dashboard</h1>
-            <p className="text-sm text-gray-600">Test and compare AI models with document analysis</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold text-lg">AI</span>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                GPT-OSS-20B Dashboard
+              </h1>
+              <p className="text-sm text-gray-600 font-medium">Enterprise AI Document Analysis Platform</p>
+            </div>
           </div>
 
           <div className="relative">
-            <label htmlFor="model-select" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="model-select" className="block text-sm font-semibold text-gray-700 mb-2">
               AI Model
             </label>
             <div className="relative">
@@ -30,7 +37,7 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onModelChange }) => {
                   const model = AI_MODELS.find(m => m.id === e.target.value);
                   if (model) onModelChange(model);
                 }}
-                className="appearance-none bg-white border border-gray-300 rounded-md px-4 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="appearance-none bg-white border-2 border-gray-300 rounded-lg px-4 py-2.5 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 hover:border-gray-400 transition-colors cursor-pointer shadow-sm"
               >
                 {AI_MODELS.map((model) => (
                   <option key={model.id} value={model.id}>
@@ -38,9 +45,9 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onModelChange }) => {
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
             </div>
-            <p className="text-xs text-gray-500 mt-1">{selectedModel.description}</p>
+            <p className="text-xs text-gray-500 mt-1.5 font-medium">{selectedModel.description}</p>
           </div>
         </div>
       </div>
