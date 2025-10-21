@@ -29,13 +29,48 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
     setUploading(true);
 
     try {
-      const content = await processDocument(file);
+      const result = await processDocument(file);
+
+      // Check file types
+      const isImage = file.type.startsWith('image/') ||
+        file.name.endsWith('.png') ||
+        file.name.endsWith('.jpg') ||
+        file.name.endsWith('.jpeg');
+
+      const isPDF = file.type === 'application/pdf';
+
+      const isWordDoc = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.type === 'application/msword';
+
+      let imageData: string | undefined;
+      let fileBlob: string | undefined;
+
+      // If it's an image, convert to base64 for display
+      if (isImage) {
+        imageData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
+      // If it's a PDF, create a blob URL for native PDF viewer
+      if (isPDF) {
+        fileBlob = URL.createObjectURL(file);
+      }
 
       const document: Document = {
         name: file.name,
         type: file.type,
-        content: content,
-        uploadedAt: new Date()
+        content: result.content,
+        uploadedAt: new Date(),
+        imageData,
+        isImage,
+        fileBlob,
+        htmlContent: result.htmlContent,
+        isPDF,
+        isWordDoc
       };
 
       onDocumentUpload(document);
@@ -96,7 +131,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
           ref={fileInputRef}
           type="file"
           className="hidden"
-          accept=".pdf,.doc,.docx,.txt,.xlsx,.xls,.csv,.json"
+          accept=".pdf,.doc,.docx,.txt,.xlsx,.xls,.csv,.json,.png,.jpg,.jpeg"
           onChange={handleChange}
         />
 
@@ -118,7 +153,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
               </button>
             </p>
             <p className="text-xs text-gray-500">
-              Supports PDF, Word, Excel, CSV, JSON, and TXT files up to 50MB
+              Supports PDF, Word, Excel, CSV, JSON, TXT, and Images (PNG, JPG) up to 50MB
             </p>
           </div>
         )}

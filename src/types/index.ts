@@ -3,6 +3,12 @@ export interface Document {
   type: string;
   content: string;
   uploadedAt: Date;
+  imageData?: string; // Base64 image data for screenshots/images
+  isImage?: boolean; // Flag to indicate if this is an image file
+  fileBlob?: string; // Blob URL for native viewing (PDFs, etc.)
+  htmlContent?: string; // Formatted HTML content for Word docs
+  isPDF?: boolean; // Flag to indicate if this is a PDF file
+  isWordDoc?: boolean; // Flag to indicate if this is a Word document
 }
 
 export interface ChartData {

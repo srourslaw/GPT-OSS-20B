@@ -1,6 +1,7 @@
 import { cleanText } from '../utils/fileHelpers';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+import Tesseract from 'tesseract.js';
 
 const readFileAsArrayBuffer = async (file: File): Promise<ArrayBuffer> => {
   return new Promise((resolve, reject) => {
@@ -131,7 +132,7 @@ You can still ask questions about the document based on its filename, or try:
   }
 };
 
-export const processWordDoc = async (file: File): Promise<string> => {
+export const processWordDoc = async (file: File): Promise<{ content: string; htmlContent?: string }> => {
   console.log('Processing Word document:', file.name, 'Size:', file.size, 'Type:', file.type);
 
   try {
@@ -161,22 +162,30 @@ export const processWordDoc = async (file: File): Promise<string> => {
       const mammoth = await import('mammoth');
       console.log('Mammoth imported successfully');
 
-      console.log('Extracting text from DOCX...');
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      console.log('Extraction result:', result);
-      console.log('Extracted text length:', result.value?.length || 0);
+      // Extract both HTML and raw text
+      console.log('Extracting HTML and text from DOCX...');
+      const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
+      const textResult = await mammoth.extractRawText({ arrayBuffer });
 
-      if (result.messages && result.messages.length > 0) {
-        console.log('Mammoth messages:', result.messages);
+      console.log('Extraction complete');
+      console.log('HTML length:', htmlResult.value?.length || 0);
+      console.log('Text length:', textResult.value?.length || 0);
+
+      if (textResult.messages && textResult.messages.length > 0) {
+        console.log('Mammoth messages:', textResult.messages);
       }
 
-      if (!result.value || result.value.trim().length === 0) {
+      if (!textResult.value || textResult.value.trim().length === 0) {
         throw new Error('No text content found in Word document - might be empty or image-based');
       }
 
-      const cleanedText = cleanText(result.value);
+      const cleanedText = cleanText(textResult.value);
       console.log('Cleaned text length:', cleanedText.length);
-      return cleanedText;
+
+      return {
+        content: cleanedText,
+        htmlContent: htmlResult.value
+      };
     } else if (file.type === 'application/msword') {
       // For .doc files (legacy format)
       console.log('Legacy .doc format detected');
@@ -202,7 +211,7 @@ export const processWordDoc = async (file: File): Promise<string> => {
     }
 
     // Fallback message if Word processing fails
-    return `Word document "${file.name}" uploaded successfully.
+    const fallbackMessage = `Word document "${file.name}" uploaded successfully.
 
 Note: Text extraction failed. Error: ${errorMessage}
 
@@ -217,6 +226,8 @@ You can still ask questions about the document based on its filename, or try:
 - Converting to .docx format
 - Saving as a .txt file
 - Using a different browser`;
+
+    return { content: fallbackMessage };
   }
 };
 
@@ -345,16 +356,88 @@ export const processJSON = async (file: File): Promise<string> => {
   }
 };
 
-export const processDocument = async (file: File): Promise<string> => {
-  let content = '';
+export const processImage = async (file: File): Promise<string> => {
+  console.log('Processing image with OCR:', file.name);
 
-  if (file.type === 'application/pdf') {
+  try {
+    // Validate file
+    if (file.size === 0) {
+      throw new Error('File appears to be empty');
+    }
+
+    console.log('Starting OCR with Tesseract.js...');
+
+    // Use Tesseract.js to extract text from the image
+    const { data: { text, confidence } } = await Tesseract.recognize(
+      file,
+      'eng', // English language
+      {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+          }
+        }
+      }
+    );
+
+    console.log('OCR completed. Confidence:', confidence);
+    console.log('Extracted text length:', text.length);
+
+    if (!text || text.trim().length === 0) {
+      return `Image file "${file.name}" uploaded successfully.
+
+Note: No text detected in the image.
+
+This image might:
+- Contain no text
+- Have very small or unclear text
+- Be a diagram, chart, or photo without text
+
+You can still describe the image or ask questions about what you expect it to contain.`;
+    }
+
+    let content = `Image File: ${file.name}\n`;
+    content += `OCR Confidence: ${Math.round(confidence)}%\n\n`;
+    content += `Extracted Text:\n${text}\n`;
+
+    return cleanText(content);
+  } catch (error) {
+    console.error('Image OCR error:', error);
+
+    let errorMessage = 'Unknown error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    return `Image file "${file.name}" uploaded successfully.
+
+Note: OCR text extraction failed. Error: ${errorMessage}
+
+You can still ask questions about the image based on its filename or describe what you expect it to contain.`;
+  }
+};
+
+export const processDocument = async (file: File): Promise<{ content: string; htmlContent?: string }> => {
+  let content = '';
+  let htmlContent: string | undefined;
+
+  // Check if it's an image file
+  const isImage = file.type.startsWith('image/') ||
+    file.name.endsWith('.png') ||
+    file.name.endsWith('.jpg') ||
+    file.name.endsWith('.jpeg');
+
+  if (isImage) {
+    content = await processImage(file);
+  } else if (file.type === 'application/pdf') {
     content = await processPDF(file);
   } else if (
     file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
     file.type === 'application/msword'
   ) {
-    content = await processWordDoc(file);
+    const wordResult = await processWordDoc(file);
+    content = wordResult.content;
+    htmlContent = wordResult.htmlContent;
   } else if (
     file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
     file.type === 'application/vnd.ms-excel' ||
@@ -371,5 +454,8 @@ export const processDocument = async (file: File): Promise<string> => {
     content = await file.text();
   }
 
-  return cleanText(content);
+  return {
+    content: cleanText(content),
+    htmlContent
+  };
 };

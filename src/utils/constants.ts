@@ -68,7 +68,10 @@ export const SUPPORTED_FILE_TYPES = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
   'application/vnd.ms-excel': '.xls',
   'text/csv': '.csv',
-  'application/json': '.json'
+  'application/json': '.json',
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg'
 };
 
 export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB

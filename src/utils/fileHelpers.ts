@@ -15,10 +15,13 @@ export const validateFile = (file: File): { isValid: boolean; error?: string } =
     file.name.endsWith('.xls') ||
     file.name.endsWith('.csv') ||
     file.name.endsWith('.json') ||
-    file.name.endsWith('.txt');
+    file.name.endsWith('.txt') ||
+    file.name.endsWith('.png') ||
+    file.name.endsWith('.jpg') ||
+    file.name.endsWith('.jpeg');
 
   if (!isValidType) {
-    return { isValid: false, error: 'Unsupported file type. Please upload PDF, Word, Excel, CSV, JSON, or TXT files.' };
+    return { isValid: false, error: 'Unsupported file type. Please upload PDF, Word, Excel, CSV, JSON, TXT, or Image files (PNG, JPG).' };
   }
 
   return { isValid: true };
