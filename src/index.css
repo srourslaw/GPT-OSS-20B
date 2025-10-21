@@ -34,95 +34,183 @@ code {
   }
 }
 
-/* Markdown styling */
+/* Enhanced Markdown styling with vibrant colors */
 .markdown-content {
   @apply text-gray-800 leading-relaxed;
+  font-size: 15px;
+  line-height: 1.7;
 }
 
-.markdown-content p {
-  @apply mb-3 text-sm;
+/* Code blocks with syntax highlighting */
+.markdown-content pre {
+  @apply rounded-xl overflow-hidden my-4 shadow-lg border border-gray-700;
+  background: #0d1117 !important;
+  position: relative;
 }
 
-.markdown-content h1,
-.markdown-content h2,
-.markdown-content h3,
-.markdown-content h4 {
-  @apply font-bold text-gray-900 mt-4 mb-2;
+.markdown-content pre code {
+  @apply block overflow-x-auto p-5 font-mono;
+  background: transparent !important;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #e6edf3;
 }
 
+/* Inline code with vibrant purple */
+.markdown-content :not(pre) > code {
+  @apply px-2 py-1 rounded-md font-mono font-semibold;
+  background: linear-gradient(135deg, #f3e7ff 0%, #e9d5ff 100%);
+  color: #7c3aed;
+  font-size: 13px;
+  border: 1px solid #ddd6fe;
+}
+
+/* Syntax highlighting enhancements */
+.markdown-content .hljs {
+  background: #0d1117 !important;
+  color: #e6edf3 !important;
+}
+
+.markdown-content .hljs-keyword,
+.markdown-content .hljs-selector-tag,
+.markdown-content .hljs-literal,
+.markdown-content .hljs-section,
+.markdown-content .hljs-link {
+  color: #ff7b72 !important;
+  font-weight: 600;
+}
+
+.markdown-content .hljs-string,
+.markdown-content .hljs-attribute,
+.markdown-content .hljs-addition {
+  color: #a5d6ff !important;
+}
+
+.markdown-content .hljs-function,
+.markdown-content .hljs-title {
+  color: #d2a8ff !important;
+  font-weight: 600;
+}
+
+.markdown-content .hljs-variable,
+.markdown-content .hljs-template-variable {
+  color: #ffa657 !important;
+}
+
+.markdown-content .hljs-comment,
+.markdown-content .hljs-quote {
+  color: #8b949e !important;
+  font-style: italic;
+}
+
+.markdown-content .hljs-number,
+.markdown-content .hljs-regexp,
+.markdown-content .hljs-meta {
+  color: #79c0ff !important;
+}
+
+.markdown-content .hljs-built_in,
+.markdown-content .hljs-class .hljs-title {
+  color: #ffa657 !important;
+}
+
+/* Headings with gradients */
 .markdown-content h1 {
-  @apply text-xl;
+  @apply text-2xl font-bold mt-6 mb-4 pb-3;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  border-bottom: 3px solid #e0e7ff;
 }
 
 .markdown-content h2 {
-  @apply text-lg;
+  @apply text-xl font-bold mt-5 mb-3;
+  color: #4f46e5;
 }
 
 .markdown-content h3 {
-  @apply text-base;
+  @apply text-lg font-semibold mt-4 mb-2;
+  color: #6366f1;
 }
 
-.markdown-content ul,
-.markdown-content ol {
-  @apply ml-4 mb-3 space-y-1;
+/* Paragraphs */
+.markdown-content p {
+  @apply mb-3 leading-relaxed;
+  color: #374151;
 }
 
+/* Lists with custom bullets */
 .markdown-content ul {
-  @apply list-disc;
+  @apply my-3 space-y-2;
 }
 
 .markdown-content ol {
-  @apply list-decimal;
+  @apply my-3 space-y-2;
 }
 
 .markdown-content li {
-  @apply text-sm leading-relaxed;
+  @apply leading-relaxed;
+  color: #4b5563;
 }
 
+/* Strong and emphasis */
 .markdown-content strong {
-  @apply font-semibold text-gray-900;
+  @apply font-bold;
+  color: #1f2937;
 }
 
 .markdown-content em {
   @apply italic;
+  color: #6b7280;
 }
 
-.markdown-content code {
-  @apply bg-gray-100 text-pink-600 px-1.5 py-0.5 rounded text-xs font-mono;
-}
-
-.markdown-content pre {
-  @apply bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto mb-3 font-mono text-sm;
-}
-
-.markdown-content pre code {
-  @apply bg-transparent text-gray-100 p-0 font-mono;
-  color: #e5e7eb;
-  display: block;
-  overflow-x: auto;
-}
-
+/* Blockquotes with gradient border */
 .markdown-content blockquote {
-  @apply border-l-4 border-blue-500 pl-4 italic text-gray-700 my-3;
+  @apply pl-4 py-2 my-4 italic rounded-r-lg;
+  background: linear-gradient(to right, #eff6ff 0%, #dbeafe 100%);
+  border-left: 4px solid;
+  border-image: linear-gradient(to bottom, #3b82f6, #8b5cf6) 1;
+  color: #1e40af;
 }
 
+/* Links with hover effects */
 .markdown-content a {
-  @apply text-blue-600 hover:text-blue-800 underline;
+  @apply font-medium underline decoration-2 underline-offset-2;
+  color: #2563eb;
+  transition: all 0.2s;
 }
 
+.markdown-content a:hover {
+  @apply decoration-4;
+  color: #1d4ed8;
+}
+
+/* Tables with gradients */
 .markdown-content table {
-  @apply w-full border-collapse mb-3;
+  @apply w-full border-collapse mb-4 overflow-hidden rounded-lg shadow-md;
 }
 
-.markdown-content th,
-.markdown-content td {
-  @apply border border-gray-300 px-3 py-2 text-sm;
+.markdown-content thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .markdown-content th {
-  @apply bg-gray-100 font-semibold;
+  @apply px-4 py-3 text-sm font-bold text-white;
+  border: none;
 }
 
+.markdown-content td {
+  @apply px-4 py-3 text-sm border-b border-gray-200;
+  color: #374151;
+}
+
+.markdown-content tbody tr:hover {
+  @apply bg-purple-50;
+}
+
+/* Horizontal rules */
 .markdown-content hr {
-  @apply my-4 border-gray-300;
+  @apply my-6 border-0 h-1 rounded;
+  background: linear-gradient(to right, #e0e7ff, #c7d2fe, #e0e7ff);
 }

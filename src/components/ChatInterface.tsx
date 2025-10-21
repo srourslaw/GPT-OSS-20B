@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
 import { ChatMessage, ChatMode } from '../types';
 import ChartRenderer from './ChartRenderer';
+import 'highlight.js/styles/github-dark.css';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
@@ -22,6 +24,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -44,6 +47,120 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     navigator.clipboard.writeText(text);
     setCopiedId(messageId);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const copyCodeToClipboard = (code: string, codeId: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCodeId(codeId);
+    setTimeout(() => setCopiedCodeId(null), 2000);
+  };
+
+  // Custom components for ReactMarkdown with enhanced styling
+  const components = {
+    code({ node, inline, className, children, ...props }: any) {
+      const match = /language-(\w+)/.exec(className || '');
+      const codeString = String(children).replace(/\n$/, '');
+      const codeId = `code-${Math.random().toString(36).substr(2, 9)}`;
+
+      return !inline ? (
+        <div className="relative group my-4">
+          <div className="absolute right-2 top-2 z-10">
+            <button
+              onClick={() => copyCodeToClipboard(codeString, codeId)}
+              className="opacity-0 group-hover:opacity-100 transition-opacity bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5"
+              title="Copy code"
+            >
+              {copiedCodeId === codeId ? (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy
+                </>
+              )}
+            </button>
+          </div>
+          <code className={className} {...props}>
+            {children}
+          </code>
+        </div>
+      ) : (
+        <code className="px-1.5 py-0.5 bg-purple-100 text-purple-800 rounded font-mono text-sm" {...props}>
+          {children}
+        </code>
+      );
+    },
+    h1: ({ children }: any) => (
+      <h1 className="text-2xl font-bold text-gray-900 mt-6 mb-4 pb-2 border-b-2 border-gradient-to-r from-purple-500 to-blue-500">{children}</h1>
+    ),
+    h2: ({ children }: any) => (
+      <h2 className="text-xl font-bold text-gray-800 mt-5 mb-3 flex items-center gap-2">
+        <span className="w-1 h-6 bg-gradient-to-b from-purple-500 to-blue-500 rounded-full"></span>
+        {children}
+      </h2>
+    ),
+    h3: ({ children }: any) => (
+      <h3 className="text-lg font-semibold text-gray-800 mt-4 mb-2">{children}</h3>
+    ),
+    ul: ({ children }: any) => (
+      <ul className="space-y-2 my-3">{children}</ul>
+    ),
+    ol: ({ children }: any) => (
+      <ol className="space-y-2 my-3 list-decimal list-inside">{children}</ol>
+    ),
+    li: ({ children }: any) => (
+      <li className="text-gray-700 leading-relaxed flex items-start gap-2">
+        <span className="text-purple-500 mt-1.5">•</span>
+        <span className="flex-1">{children}</span>
+      </li>
+    ),
+    blockquote: ({ children }: any) => (
+      <blockquote className="border-l-4 border-blue-500 bg-blue-50 pl-4 py-2 my-4 italic text-gray-700">
+        {children}
+      </blockquote>
+    ),
+    table: ({ children }: any) => (
+      <div className="overflow-x-auto my-4">
+        <table className="min-w-full divide-y divide-gray-300 border border-gray-300 rounded-lg">
+          {children}
+        </table>
+      </div>
+    ),
+    thead: ({ children }: any) => (
+      <thead className="bg-gradient-to-r from-purple-50 to-blue-50">{children}</thead>
+    ),
+    th: ({ children }: any) => (
+      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-b border-gray-300">
+        {children}
+      </th>
+    ),
+    td: ({ children }: any) => (
+      <td className="px-4 py-3 text-sm text-gray-700 border-b border-gray-200">
+        {children}
+      </td>
+    ),
+    a: ({ children, href }: any) => (
+      <a
+        href={href}
+        className="text-blue-600 hover:text-blue-800 underline font-medium"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    ),
+    p: ({ children }: any) => (
+      <p className="text-gray-700 leading-relaxed my-2">{children}</p>
+    ),
+    strong: ({ children }: any) => (
+      <strong className="font-bold text-gray-900">{children}</strong>
+    ),
+    em: ({ children }: any) => (
+      <em className="italic text-gray-800">{children}</em>
+    ),
   };
 
   return (
@@ -91,8 +208,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       <p className="text-sm whitespace-pre-wrap">{message.text}</p>
                     ) : (
                       <>
-                        <div className="prose prose-sm max-w-none markdown-content">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        <div className="prose prose-lg max-w-none markdown-content">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeHighlight]}
+                            components={components}
+                          >
                             {message.text}
                           </ReactMarkdown>
                         </div>
