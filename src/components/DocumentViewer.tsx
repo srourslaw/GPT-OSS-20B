@@ -34,9 +34,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
       </div>
 
       {/* Document Content */}
-      <div className="document-viewer">
+      <div className="document-viewer max-h-[400px] overflow-y-auto">
         {document.content ? (
-          <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed">
+          <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed pr-2">
             {document.content}
           </div>
         ) : (
