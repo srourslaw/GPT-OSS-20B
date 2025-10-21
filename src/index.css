@@ -43,7 +43,7 @@ code {
 
 /* Code blocks with syntax highlighting */
 .markdown-content pre {
-  @apply rounded-xl overflow-hidden my-4 shadow-lg border border-gray-700;
+  @apply rounded-xl overflow-hidden my-4 shadow-lg;
   background: #0d1117 !important;
   position: relative;
 }
