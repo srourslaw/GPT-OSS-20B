@@ -1,8 +1,8 @@
-# Nexus 20B Context Window Guide
+# HussAI 20B Context Window Guide
 
 ## 📊 Your Model Specifications
 
-**Model:** Nexus 20B
+**Model:** HussAI 20B
 **Total Context Window:** 131,072 tokens (128K)
 **Parameters:** 20.9 Billion
 **Architecture:** Mixture of Experts (32 experts, 4 active per token)
@@ -376,6 +376,6 @@ Remember: With your M4 Max + 64GB RAM, you have the luxury of experimenting with
 ---
 
 **Last Updated:** January 2025
-**Model Version:** Nexus 20B (MXFP4)
+**Model Version:** HussAI 20B (MXFP4)
 **Dashboard Version:** 1.0
 

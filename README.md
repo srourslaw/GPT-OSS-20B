@@ -1,12 +1,12 @@
-# Nexus 20B Dashboard
+# HussAI Dashboard
 
-A powerful AI dashboard featuring Nexus 20B (20.9B parameter open-source model) with advanced document analysis capabilities.
+A powerful AI dashboard featuring **HussAI 20B** - your personal 20.9 billion parameter AI assistant running locally.
 
 ## Features
 
 - Upload PDF, Word, Excel, CSV, JSON, and text documents
 - Dual chat modes: General Chat & Document Q&A
-- Select between Nexus 20B (local) and Gemini AI models
+- Select between HussAI 20B (local) and Gemini AI models
 - Dynamic context window control (16K - 100K tokens)
 - Syntax-highlighted code responses
 - Interactive charts and visualizations
@@ -42,7 +42,7 @@ A powerful AI dashboard featuring Nexus 20B (20.9B parameter open-source model) 
 
 4. Add your API keys to `.env.local`:
    - Gemini AI API key
-   - Nexus 20B (via Ollama) endpoint
+   - HussAI 20B (via Ollama) endpoint
 
 5. Start development server:
    ```bash

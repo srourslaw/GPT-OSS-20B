@@ -238,7 +238,7 @@ function App() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="text-xs text-gray-600 font-medium">
-                  Nexus 20B Maximized Mode 🚀
+                  HussAI 20B Maximized Mode 🚀
                 </div>
                 <button
                   onClick={() => setShowGuideModal(true)}
@@ -421,7 +421,7 @@ function App() {
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold">Nexus 20B Context Window Guide</h2>
+                <h2 className="text-2xl font-bold">HussAI 20B Context Window Guide</h2>
                 <p className="text-sm text-blue-100 mt-1">Optimize your model's performance</p>
               </div>
               <button

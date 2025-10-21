@@ -19,9 +19,9 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onModelChange }) => {
             </div>
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                GPT-OSS-20B Dashboard
+                HussAI Dashboard
               </h1>
-              <p className="text-sm text-gray-600 font-medium">Enterprise AI Document Analysis Platform</p>
+              <p className="text-sm text-gray-600 font-medium">Your Personal AI Assistant • 20.9B Parameters</p>
             </div>
           </div>
 

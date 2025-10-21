@@ -1,8 +1,8 @@
 export const AI_MODELS = [
   {
     id: 'gpt-oss-20b',
-    name: 'Nexus 20B',
-    description: 'Powerful 20B parameter open-source model running locally'
+    name: 'HussAI 20B',
+    description: 'Your personal 20B parameter AI assistant running locally'
   },
   {
     id: 'gemini',
