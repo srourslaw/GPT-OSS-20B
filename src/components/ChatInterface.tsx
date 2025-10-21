@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { ChatMessage, ChatMode } from '../types';
 import ChartRenderer from './ChartRenderer';
-import 'highlight.js/styles/github-dark.css';
+import 'highlight.js/styles/github.css';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
