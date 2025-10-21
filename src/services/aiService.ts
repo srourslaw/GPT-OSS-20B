@@ -59,6 +59,44 @@ interface GPTOSSResponse {
   done: boolean;
 }
 
+export const formatGeneralChatPrompt = (
+  userQuestion: string,
+  conversationHistory?: string
+): string => {
+  return `You are an advanced AI assistant powered by GPT-OSS-20B. You excel at:
+- Providing helpful, accurate, and thoughtful responses
+- Engaging in natural conversation on any topic
+- Explaining complex concepts clearly
+- Creative problem-solving and brainstorming
+- Technical assistance and coding help
+- Creating visualizations and charts when helpful
+${conversationHistory ? `\nCONVERSATION HISTORY:\n${conversationHistory}\n` : ''}
+
+CURRENT QUESTION: ${userQuestion}
+
+RESPONSE GUIDELINES:
+- Provide clear, concise, and helpful answers
+- Use examples when appropriate
+- If you create visualizations, use the chart format below
+- Be conversational and engaging
+- Admit when you're uncertain about something
+
+CHART FORMATTING (when creating visualizations):
+When creating charts or visualizations, wrap each chart JSON in triple backticks with the word "chart":
+
+\`\`\`chart
+{
+  "type": "line",
+  "title": "Chart Title",
+  "data": [{"name": "A", "value": 10}],
+  "xKey": "name",
+  "yKeys": ["value"]
+}
+\`\`\`
+
+Supported chart types: line, bar, pie`;
+};
+
 export const formatPrompt = (
   userQuestion: string,
   documentContent: string,
@@ -238,9 +276,13 @@ export const sendMessage = async (
   documentContext: string,
   model: string,
   conversationHistory?: string,
-  maxContextLength: number = 32000
+  maxContextLength: number = 32000,
+  chatMode: 'general' | 'document' = 'document'
 ): Promise<AIResponse> => {
-  const prompt = formatPrompt(message, documentContext, conversationHistory, maxContextLength);
+  // Use different prompt based on chat mode
+  const prompt = chatMode === 'general'
+    ? formatGeneralChatPrompt(message, conversationHistory)
+    : formatPrompt(message, documentContext, conversationHistory, maxContextLength);
 
   let responseText: string;
 

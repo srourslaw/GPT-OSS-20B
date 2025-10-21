@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChatMessage } from '../types';
+import { ChatMessage, ChatMode } from '../types';
 import ChartRenderer from './ChartRenderer';
 
 interface ChatInterfaceProps {
@@ -10,13 +10,15 @@ interface ChatInterfaceProps {
   onSendMessage: (message: string) => void;
   isLoading: boolean;
   disabled: boolean;
+  chatMode: ChatMode;
 }
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   messages,
   onSendMessage,
   isLoading,
-  disabled
+  disabled,
+  chatMode
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -55,8 +57,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <Bot className="h-8 w-8 text-purple-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to assist you</h3>
-              {disabled ? (
-                <p className="text-sm text-gray-600">Upload a document to start chatting with AI</p>
+              {chatMode === 'general' ? (
+                <p className="text-sm text-gray-600">Ask me anything - from coding help to creative ideas!</p>
+              ) : disabled ? (
+                <p className="text-sm text-gray-600">Upload a document to start document Q&A</p>
               ) : (
                 <p className="text-sm text-gray-600">Ask any question about your document</p>
               )}
@@ -163,7 +167,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             type="text"
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
-            placeholder={disabled ? "Upload a document to start chatting..." : "Ask a question about your document..."}
+            placeholder={
+              chatMode === 'general'
+                ? "Ask me anything..."
+                : disabled
+                ? "Upload a document to start chatting..."
+                : "Ask a question about your document..."
+            }
             disabled={disabled || isLoading}
             className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all shadow-sm hover:border-gray-400 text-sm"
           />

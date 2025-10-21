@@ -73,3 +73,18 @@ export const SUPPORTED_FILE_TYPES = {
 
 export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 export const REQUEST_TIMEOUT = parseInt(import.meta.env.VITE_REQUEST_TIMEOUT) || 120000;
+
+export const CHAT_MODES = [
+  {
+    id: 'general' as const,
+    name: 'General Chat',
+    description: 'Open conversation without document context',
+    icon: '💬'
+  },
+  {
+    id: 'document' as const,
+    name: 'Document Q&A',
+    description: 'Analyze and ask questions about uploaded documents',
+    icon: '📄'
+  }
+];

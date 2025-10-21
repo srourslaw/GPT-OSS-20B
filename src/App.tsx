@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Download, FileText, FileJson, File, Brain, Zap, Database, Info, Settings } from 'lucide-react';
+import { X, Download, FileText, FileJson, File, Brain, Zap, Database, Info, Settings, MessageSquare } from 'lucide-react';
 import Header from './components/Header';
 import FileUpload from './components/FileUpload';
 import DocumentViewer from './components/DocumentViewer';
 import ChatInterface from './components/ChatInterface';
-import { Document, ChatMessage, AIModel } from './types';
-import { AI_MODELS, CONTEXT_PRESETS, ContextPreset } from './utils/constants';
+import { Document, ChatMessage, AIModel, ChatMode } from './types';
+import { AI_MODELS, CONTEXT_PRESETS, ContextPreset, CHAT_MODES } from './utils/constants';
 import { sendMessage } from './services/aiService';
 import { exportChatAsMarkdown, exportChatAsJSON, exportChatAsText } from './utils/exportHelpers';
 
@@ -18,8 +18,11 @@ function App() {
   const [selectedContextPreset, setSelectedContextPreset] = useState<ContextPreset>(CONTEXT_PRESETS[1]); // Default to Balanced
   const [showContextSelector, setShowContextSelector] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
+  const [chatMode, setChatMode] = useState<ChatMode>('general'); // Default to general chat
+  const [showChatModeSelector, setShowChatModeSelector] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const chatModeMenuRef = useRef<HTMLDivElement>(null);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -30,20 +33,24 @@ function App() {
       if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
         setShowContextSelector(false);
       }
+      if (chatModeMenuRef.current && !chatModeMenuRef.current.contains(event.target as Node)) {
+        setShowChatModeSelector(false);
+      }
     };
 
-    if (showExportMenu || showContextSelector) {
+    if (showExportMenu || showContextSelector || showChatModeSelector) {
       window.document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       window.document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showExportMenu, showContextSelector]);
+  }, [showExportMenu, showContextSelector, showChatModeSelector]);
 
   const handleDocumentUpload = (uploadedDocument: Document) => {
     setDocument(uploadedDocument);
     setMessages([]); // Clear chat history when new document is uploaded
+    setChatMode('document'); // Automatically switch to document mode
   };
 
   const handleClearDocument = () => {
@@ -79,8 +86,9 @@ function App() {
   };
 
   const handleSendMessage = async (message: string) => {
-    if (!document) {
-      alert('Please upload a document first');
+    // In document mode, require a document to be uploaded
+    if (chatMode === 'document' && !document) {
+      alert('Please upload a document first or switch to General Chat mode');
       return;
     }
 
@@ -106,10 +114,11 @@ function App() {
 
       const aiResponse = await sendMessage(
         message,
-        document.content,
+        document?.content || '', // Pass empty string if no document in general mode
         selectedModel.id,
         conversationHistory || undefined,
-        selectedContextPreset.tokens
+        selectedContextPreset.tokens,
+        chatMode
       );
 
       const aiMessage: ChatMessage = {
@@ -281,16 +290,75 @@ function App() {
 
           {/* Right Column - Chat Interface */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-pink-600 rounded-full"></div>
-                <h2 className="text-xl font-bold text-gray-900">AI Assistant</h2>
+            {/* Chat Mode Selector */}
+            <div className="mb-4 pb-3 border-b border-gray-200">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2 relative" ref={chatModeMenuRef}>
+                  <MessageSquare className="h-5 w-5 text-purple-600" />
+                  <div>
+                    <p className="text-xs font-semibold text-gray-700">Chat Mode</p>
+                    <button
+                      onClick={() => setShowChatModeSelector(!showChatModeSelector)}
+                      className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+                    >
+                      {CHAT_MODES.find(m => m.id === chatMode)?.icon} {CHAT_MODES.find(m => m.id === chatMode)?.name}
+                      <Settings className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  {showChatModeSelector && (
+                    <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-lg shadow-2xl border border-gray-200 z-50">
+                      <div className="p-3 border-b border-gray-200 bg-gray-50">
+                        <h3 className="text-sm font-bold text-gray-900">Select Chat Mode</h3>
+                        <p className="text-xs text-gray-600 mt-1">Choose how you want to interact</p>
+                      </div>
+                      {CHAT_MODES.map((mode) => (
+                        <button
+                          key={mode.id}
+                          onClick={() => {
+                            setChatMode(mode.id);
+                            setShowChatModeSelector(false);
+                            if (mode.id === 'document' && !document) {
+                              // Optionally show a hint that document is needed
+                            }
+                          }}
+                          className={`w-full text-left p-3 hover:bg-purple-50 transition-colors border-b border-gray-100 ${
+                            chatMode === mode.id ? 'bg-purple-50 border-l-4 border-l-purple-600' : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="text-2xl">{mode.icon}</span>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold text-gray-900">{mode.name}</p>
+                                {mode.id === 'document' && !document && (
+                                  <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                                    Needs doc
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600 mt-0.5">{mode.description}</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {messages.length > 0 && (
                   <span className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-full flex items-center gap-1">
                     <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                     Memory Active
                   </span>
                 )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-pink-600 rounded-full"></div>
+                <h2 className="text-xl font-bold text-gray-900">AI Assistant</h2>
               </div>
 
               {/* Export Dropdown */}
@@ -339,7 +407,8 @@ function App() {
               messages={messages}
               onSendMessage={handleSendMessage}
               isLoading={isLoading}
-              disabled={!document}
+              disabled={chatMode === 'document' && !document}
+              chatMode={chatMode}
             />
           </div>
         </div>

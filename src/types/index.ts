@@ -35,3 +35,12 @@ export interface AIResponse {
   timestamp: Date;
   chartData?: ChartData[];
 }
+
+export type ChatMode = 'general' | 'document';
+
+export interface ChatModeOption {
+  id: ChatMode;
+  name: string;
+  description: string;
+  icon: string;
+}
