@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Download, FileText, FileJson, File, Brain, Zap, Database, Info, Settings, MessageSquare } from 'lucide-react';
+import { X, Download, FileText, FileJson, File, Brain, Zap, Database, Info, Settings, MessageSquare, ChevronDown } from 'lucide-react';
 import Header from './components/Header';
 import FileUpload from './components/FileUpload';
 import DocumentViewer from './components/DocumentViewer';
@@ -171,10 +171,10 @@ function App() {
                     <p className="text-xs font-semibold text-gray-700">Document Context</p>
                     <button
                       onClick={() => setShowContextSelector(!showContextSelector)}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-all"
                     >
                       {selectedContextPreset.icon} {selectedContextPreset.name} ({(selectedContextPreset.tokens / 1000).toFixed(0)}K tokens)
-                      <Settings className="h-3 w-3" />
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showContextSelector ? 'rotate-180' : ''}`} />
                     </button>
                   </div>
 
@@ -299,10 +299,10 @@ function App() {
                     <p className="text-xs font-semibold text-gray-700">Chat Mode</p>
                     <button
                       onClick={() => setShowChatModeSelector(!showChatModeSelector)}
-                      className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+                      className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1 transition-all"
                     >
                       {CHAT_MODES.find(m => m.id === chatMode)?.icon} {CHAT_MODES.find(m => m.id === chatMode)?.name}
-                      <Settings className="h-3 w-3" />
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showChatModeSelector ? 'rotate-180' : ''}`} />
                     </button>
                   </div>
 
