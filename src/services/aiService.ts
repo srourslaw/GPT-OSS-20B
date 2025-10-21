@@ -63,7 +63,7 @@ export const formatGeneralChatPrompt = (
   userQuestion: string,
   conversationHistory?: string
 ): string => {
-  return `You are an advanced AI assistant powered by GPT-OSS-20B. You excel at:
+  return `You are an advanced AI assistant powered by Nexus 20B. You excel at:
 - Providing helpful, accurate, and thoughtful responses
 - Engaging in natural conversation on any topic
 - Explaining complex concepts clearly
@@ -108,7 +108,7 @@ export const formatPrompt = (
     ? documentContent.substring(0, maxContextLength) + '...'
     : documentContent;
 
-  return `You are an advanced AI data analyst and document processing expert powered by GPT-OSS-20B. You excel at:
+  return `You are an advanced AI data analyst and document processing expert powered by Nexus 20B. You excel at:
 - Deep analysis of structured and unstructured data
 - Creating insightful visualizations and charts
 - Identifying patterns, trends, and anomalies
@@ -259,7 +259,7 @@ export const handleGPTOSSRequest = async (prompt: string): Promise<string> => {
 
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
-        throw new Error('Request timeout - Make sure Ollama is running with GPT-OSS-20B model');
+        throw new Error('Request timeout - Make sure Ollama is running with Nexus 20B model');
       }
       if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
         throw new Error('Cannot connect to Ollama server. Make sure Ollama is running on http://127.0.0.1:11434');
@@ -267,7 +267,7 @@ export const handleGPTOSSRequest = async (prompt: string): Promise<string> => {
       throw error;
     }
 
-    throw new Error('Failed to get response from GPT-OSS-20B');
+    throw new Error('Failed to get response from Nexus 20B');
   }
 };
 

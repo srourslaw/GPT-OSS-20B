@@ -1,13 +1,13 @@
 export const AI_MODELS = [
   {
+    id: 'gpt-oss-20b',
+    name: 'Nexus 20B',
+    description: 'Powerful 20B parameter open-source model running locally'
+  },
+  {
     id: 'gemini',
     name: 'Gemini AI',
     description: 'Google\'s advanced AI model'
-  },
-  {
-    id: 'gpt-oss-20b',
-    name: 'GPT-OSS-20B (Ollama)',
-    description: 'Local GPT-OSS-20B model running via Ollama'
   }
 ];
 

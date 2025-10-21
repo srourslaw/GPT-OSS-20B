@@ -1,13 +1,18 @@
-# GPT-OSS-20B Dashboard
+# Nexus 20B Dashboard
 
-A simple dashboard for testing GPT-OSS-20B AI model as an API service with document viewing capabilities.
+A powerful AI dashboard featuring Nexus 20B (20.9B parameter open-source model) with advanced document analysis capabilities.
 
 ## Features
 
-- Upload PDF and Word documents
-- Select between Gemini AI and GPT-OSS-20B models
-- Ask questions about uploaded documents
-- View AI responses in a chat interface
+- Upload PDF, Word, Excel, CSV, JSON, and text documents
+- Dual chat modes: General Chat & Document Q&A
+- Select between Nexus 20B (local) and Gemini AI models
+- Dynamic context window control (16K - 100K tokens)
+- Syntax-highlighted code responses
+- Interactive charts and visualizations
+- Export conversations (Markdown, JSON, Text)
+- Download charts as images
+- Conversation memory for context-aware responses
 
 ## Technology Stack
 
@@ -37,7 +42,7 @@ A simple dashboard for testing GPT-OSS-20B AI model as an API service with docum
 
 4. Add your API keys to `.env.local`:
    - Gemini AI API key
-   - GPT-OSS-20B API endpoint and key
+   - Nexus 20B (via Ollama) endpoint
 
 5. Start development server:
    ```bash
