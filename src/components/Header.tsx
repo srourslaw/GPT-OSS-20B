@@ -1,5 +1,5 @@
-import React from 'react';
-import { ChevronDown } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ChevronDown, Sparkles, Globe } from 'lucide-react';
 import { AIModel } from '../types';
 import { AI_MODELS } from '../utils/constants';
 
@@ -9,6 +9,47 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ selectedModel, onModelChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const getModelIcon = (modelId: string) => {
+    if (modelId === 'gpt-oss-20b') {
+      return <Sparkles className="h-5 w-5 text-purple-600" />;
+    }
+    return <Globe className="h-5 w-5 text-blue-600" />;
+  };
+
+  const getModelBadge = (modelId: string) => {
+    if (modelId === 'gpt-oss-20b') {
+      return (
+        <span className="px-2 py-0.5 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 text-xs font-bold rounded-full">
+          LOCAL
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+        CLOUD
+      </span>
+    );
+  };
+
   return (
     <header className="bg-white shadow-md border-b border-gray-200 backdrop-blur-sm">
       <div className="container mx-auto px-4 py-5">
@@ -25,29 +66,67 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onModelChange }) => {
             </div>
           </div>
 
-          <div className="relative">
-            <label htmlFor="model-select" className="block text-sm font-semibold text-gray-700 mb-2">
-              AI Model
+          <div className="relative" ref={dropdownRef}>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              Active Model
             </label>
-            <div className="relative">
-              <select
-                id="model-select"
-                value={selectedModel.id}
-                onChange={(e) => {
-                  const model = AI_MODELS.find(m => m.id === e.target.value);
-                  if (model) onModelChange(model);
-                }}
-                className="appearance-none bg-white border-2 border-gray-300 rounded-lg px-4 py-2.5 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 hover:border-gray-400 transition-colors cursor-pointer shadow-sm"
-              >
+
+            {/* Custom Dropdown Button */}
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="w-64 bg-gradient-to-r from-gray-50 to-white border-2 border-gray-300 rounded-xl px-4 py-3 text-left hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all shadow-sm hover:shadow-md group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                  {getModelIcon(selectedModel.id)}
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-gray-900">{selectedModel.name}</p>
+                  </div>
+                  {getModelBadge(selectedModel.id)}
+                </div>
+                <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+
+            {/* Dropdown Menu */}
+            {isOpen && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden">
                 {AI_MODELS.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name}
-                  </option>
+                  <button
+                    key={model.id}
+                    onClick={() => {
+                      onModelChange(model);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-4 hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all border-b border-gray-100 last:border-b-0 ${
+                      selectedModel.id === model.id ? 'bg-gradient-to-r from-purple-50 to-blue-50 border-l-4 border-l-purple-600' : ''
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5">
+                        {getModelIcon(model.id)}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-sm font-bold text-gray-900">{model.name}</p>
+                          {getModelBadge(model.id)}
+                          {selectedModel.id === model.id && (
+                            <span className="ml-auto text-purple-600 text-xs font-bold">✓ ACTIVE</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-600 leading-relaxed">{model.description}</p>
+                      </div>
+                    </div>
+                  </button>
                 ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
-            </div>
-            <p className="text-xs text-gray-500 mt-1.5 font-medium">{selectedModel.description}</p>
+              </div>
+            )}
+
+            {/* Description Below */}
+            <p className="text-xs text-gray-500 mt-2 font-medium flex items-center gap-1">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              {selectedModel.description}
+            </p>
           </div>
         </div>
       </div>
