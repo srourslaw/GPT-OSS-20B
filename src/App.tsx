@@ -4,6 +4,7 @@ import Header from './components/Header';
 import FileUpload from './components/FileUpload';
 import DocumentViewer from './components/DocumentViewer';
 import ChatInterface from './components/ChatInterface';
+import APIGuideModal from './components/APIGuideModal';
 import { Document, ChatMessage, AIModel, ChatMode } from './types';
 import { AI_MODELS, CONTEXT_PRESETS, ContextPreset, CHAT_MODES } from './utils/constants';
 import { sendMessage } from './services/aiService';
@@ -18,6 +19,7 @@ function App() {
   const [selectedContextPreset, setSelectedContextPreset] = useState<ContextPreset>(CONTEXT_PRESETS[1]); // Default to Balanced
   const [showContextSelector, setShowContextSelector] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
+  const [showAPIGuide, setShowAPIGuide] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>('general'); // Default to general chat
   const [showChatModeSelector, setShowChatModeSelector] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -148,7 +150,11 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Header selectedModel={selectedModel} onModelChange={handleModelChange} />
+      <Header
+        selectedModel={selectedModel}
+        onModelChange={handleModelChange}
+        onShowAPIGuide={() => setShowAPIGuide(true)}
+      />
 
       {/* Enhanced Features Banner */}
       {document && (
@@ -570,6 +576,12 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* API Guide Modal */}
+      <APIGuideModal
+        isOpen={showAPIGuide}
+        onClose={() => setShowAPIGuide(false)}
+      />
     </div>
   );
 }
