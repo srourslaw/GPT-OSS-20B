@@ -26,6 +26,72 @@ function App() {
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const chatModeMenuRef = useRef<HTMLDivElement>(null);
 
+  // Resizable panel state
+  const [leftPanelWidth, setLeftPanelWidth] = useState(500);
+  const [isLargeScreen, setIsLargeScreen] = useState(false);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
+  const resizeRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+
+  // Track screen size for responsive behavior
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsLargeScreen(window.innerWidth >= 1280);
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+
+    return () => {
+      window.removeEventListener('resize', checkScreenSize);
+    };
+  }, []);
+
+  // Handle panel resizing with refs to avoid re-renders
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    window.document.body.style.cursor = 'col-resize';
+    window.document.body.style.userSelect = 'none';
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current || !leftPanelRef.current) return;
+
+      const containerLeft = 24; // px-6 padding = 24px
+      const newWidth = e.clientX - containerLeft;
+
+      // Constrain width between 300px and 1200px
+      const constrainedWidth = Math.min(Math.max(newWidth, 300), 1200);
+
+      // Update DOM directly without triggering re-render
+      leftPanelRef.current.style.width = `${constrainedWidth}px`;
+    };
+
+    const handleMouseUp = () => {
+      if (!isDraggingRef.current || !leftPanelRef.current) return;
+
+      isDraggingRef.current = false;
+      window.document.body.style.cursor = '';
+      window.document.body.style.userSelect = '';
+
+      // Save final width to state
+      const currentWidth = parseInt(leftPanelRef.current.style.width);
+      if (!isNaN(currentWidth)) {
+        setLeftPanelWidth(currentWidth);
+      }
+    };
+
+    window.document.addEventListener('mousemove', handleMouseMove);
+    window.document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.document.removeEventListener('mousemove', handleMouseMove);
+      window.document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
   // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -158,31 +224,27 @@ function App() {
 
       {/* Enhanced Features Banner */}
       {document && (
-        <div className="max-w-[1920px] mx-auto px-6 pt-4">
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-6 flex-wrap">
+        <div className="max-w-[1920px] mx-auto px-6 pt-3">
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg px-4 py-2.5 shadow-sm">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-5 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <Brain className="h-5 w-5 text-purple-600" />
+                  <Brain className="h-4 w-4 text-purple-600" />
                   <div>
-                    <p className="text-xs font-semibold text-gray-700">Conversation Memory</p>
-                    <p className="text-xs text-gray-600">{messages.length} messages in context</p>
+                    <p className="text-xs font-semibold text-gray-700">{messages.length} messages</p>
                   </div>
                 </div>
 
                 {/* Context Size Selector */}
                 <div className="flex items-center gap-2 relative" ref={contextMenuRef}>
-                  <Database className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-700">Document Context</p>
-                    <button
-                      onClick={() => setShowContextSelector(!showContextSelector)}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-all"
-                    >
-                      {selectedContextPreset.icon} {selectedContextPreset.name} ({(selectedContextPreset.tokens / 1000).toFixed(0)}K tokens)
-                      <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showContextSelector ? 'rotate-180' : ''}`} />
-                    </button>
-                  </div>
+                  <Database className="h-4 w-4 text-blue-600" />
+                  <button
+                    onClick={() => setShowContextSelector(!showContextSelector)}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1 transition-all"
+                  >
+                    {selectedContextPreset.icon} {selectedContextPreset.name} ({(selectedContextPreset.tokens / 1000).toFixed(0)}K)
+                    <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${showContextSelector ? 'rotate-180' : ''}`} />
+                  </button>
 
                   {showContextSelector && (
                     <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
@@ -235,23 +297,20 @@ function App() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-yellow-600" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-700">Enhanced Analysis</p>
-                    <p className="text-xs text-gray-600">Advanced prompting active</p>
-                  </div>
+                  <Zap className="h-4 w-4 text-yellow-600" />
+                  <p className="text-xs font-semibold text-gray-700">Enhanced AI</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <div className="text-xs text-gray-600 font-medium">
-                  HussAI 20B Maximized Mode 🚀
+                <div className="text-xs text-gray-700 font-semibold">
+                  HussAI 20B 🚀
                 </div>
                 <button
                   onClick={() => setShowGuideModal(true)}
                   className="p-1 hover:bg-blue-100 rounded transition-colors"
                   title="View Context Guide"
                 >
-                  <Info className="h-4 w-4 text-blue-600" />
+                  <Info className="h-3.5 w-3.5 text-blue-600" />
                 </button>
               </div>
             </div>
@@ -260,9 +319,15 @@ function App() {
       )}
 
       <div className="max-w-[1920px] mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 xl:grid-cols-[500px_1fr] gap-6">
+        <div className="flex flex-col xl:flex-row gap-0">
           {/* Left Column - Document Upload and Viewer */}
-          <div className="space-y-6">
+          <div
+            ref={leftPanelRef}
+            className="space-y-6 flex-shrink-0 mb-6 xl:mb-0"
+            style={{
+              width: isLargeScreen ? `${leftPanelWidth}px` : '100%'
+            }}
+          >
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -294,8 +359,21 @@ function App() {
             )}
           </div>
 
+          {/* Resize Handle - Only visible on xl screens */}
+          {document && (
+            <div
+              ref={resizeRef}
+              onMouseDown={handleMouseDown}
+              className="hidden xl:flex items-center justify-center w-4 cursor-col-resize hover:bg-blue-100 transition-colors group relative"
+              title="Drag to resize"
+            >
+              <div className="w-1 h-16 bg-gray-300 rounded-full group-hover:bg-blue-500 transition-colors"></div>
+              <div className="absolute inset-0 w-8 -ml-2"></div>
+            </div>
+          )}
+
           {/* Right Column - Chat Interface */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+          <div className={`flex-1 bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow ${document ? '' : 'xl:ml-6 mt-6 xl:mt-0'}`}>
             {/* Chat Mode Selector */}
             <div className="mb-4 pb-3 border-b border-gray-200">
               <div className="flex items-center justify-between flex-wrap gap-3">

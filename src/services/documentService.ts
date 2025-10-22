@@ -132,7 +132,7 @@ You can still ask questions about the document based on its filename, or try:
   }
 };
 
-export const processWordDoc = async (file: File): Promise<{ content: string; htmlContent?: string }> => {
+export const processWordDoc = async (file: File): Promise<{ content: string; htmlContent?: string; arrayBuffer?: ArrayBuffer }> => {
   console.log('Processing Word document:', file.name, 'Size:', file.size, 'Type:', file.type);
 
   try {
@@ -162,9 +162,43 @@ export const processWordDoc = async (file: File): Promise<{ content: string; htm
       const mammoth = await import('mammoth');
       console.log('Mammoth imported successfully');
 
-      // Extract both HTML and raw text
+      // Extract both HTML and raw text with enhanced style preservation
       console.log('Extracting HTML and text from DOCX...');
-      const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
+
+      // Configure Mammoth with custom style mappings to preserve formatting
+      const options = {
+        arrayBuffer,
+        styleMap: [
+          // Preserve paragraph styles with colors and backgrounds
+          "p[style-name='Heading 1'] => h1:fresh",
+          "p[style-name='Heading 2'] => h2:fresh",
+          "p[style-name='Heading 3'] => h3:fresh",
+          "p[style-name='Heading 4'] => h4:fresh",
+          "p[style-name='Heading 5'] => h5:fresh",
+          "p[style-name='Heading 6'] => h6:fresh",
+
+          // Preserve character formatting
+          "r[style-name='Strong'] => strong:fresh",
+          "r[style-name='Emphasis'] => em:fresh",
+
+          // Preserve highlights and colors by converting to inline styles
+          "p => p:fresh",
+          "r => span:fresh"
+        ],
+        convertImage: mammoth.images.imgElement((image: any) => {
+          return image.read("base64").then((imageBuffer: string) => {
+            return {
+              src: "data:" + image.contentType + ";base64," + imageBuffer
+            };
+          });
+        }),
+        // Include default styles to preserve more formatting
+        includeDefaultStyleMap: true,
+        // Preserve empty paragraphs
+        ignoreEmptyParagraphs: false
+      };
+
+      const htmlResult = await mammoth.convertToHtml(options);
       const textResult = await mammoth.extractRawText({ arrayBuffer });
 
       console.log('Extraction complete');
@@ -184,7 +218,8 @@ export const processWordDoc = async (file: File): Promise<{ content: string; htm
 
       return {
         content: cleanedText,
-        htmlContent: htmlResult.value
+        htmlContent: htmlResult.value,
+        arrayBuffer: arrayBuffer // Return the raw ArrayBuffer for native rendering
       };
     } else if (file.type === 'application/msword') {
       // For .doc files (legacy format)
@@ -417,9 +452,10 @@ You can still ask questions about the image based on its filename or describe wh
   }
 };
 
-export const processDocument = async (file: File): Promise<{ content: string; htmlContent?: string }> => {
+export const processDocument = async (file: File): Promise<{ content: string; htmlContent?: string; arrayBuffer?: ArrayBuffer }> => {
   let content = '';
   let htmlContent: string | undefined;
+  let arrayBuffer: ArrayBuffer | undefined;
 
   // Check if it's an image file
   const isImage = file.type.startsWith('image/') ||
@@ -438,6 +474,7 @@ export const processDocument = async (file: File): Promise<{ content: string; ht
     const wordResult = await processWordDoc(file);
     content = wordResult.content;
     htmlContent = wordResult.htmlContent;
+    arrayBuffer = wordResult.arrayBuffer;
   } else if (
     file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
     file.type === 'application/vnd.ms-excel' ||
@@ -456,6 +493,7 @@ export const processDocument = async (file: File): Promise<{ content: string; ht
 
   return {
     content: cleanText(content),
-    htmlContent
+    htmlContent,
+    arrayBuffer
   };
 };

@@ -70,7 +70,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
         fileBlob,
         htmlContent: result.htmlContent,
         isPDF,
-        isWordDoc
+        isWordDoc,
+        wordArrayBuffer: result.arrayBuffer // Store ArrayBuffer for native Word rendering
       };
 
       onDocumentUpload(document);

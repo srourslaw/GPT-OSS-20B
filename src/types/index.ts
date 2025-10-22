@@ -9,6 +9,7 @@ export interface Document {
   htmlContent?: string; // Formatted HTML content for Word docs
   isPDF?: boolean; // Flag to indicate if this is a PDF file
   isWordDoc?: boolean; // Flag to indicate if this is a Word document
+  wordArrayBuffer?: ArrayBuffer; // ArrayBuffer for native Word doc rendering with docx-preview
 }
 
 export interface ChartData {

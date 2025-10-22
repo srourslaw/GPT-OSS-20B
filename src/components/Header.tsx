@@ -53,7 +53,7 @@ const Header: React.FC<HeaderProps> = ({ selectedModel, onModelChange, onShowAPI
   };
 
   return (
-    <header className="bg-white shadow-md border-b border-gray-200 backdrop-blur-sm">
+    <header className="sticky top-0 z-50 bg-white shadow-md border-b border-gray-200 backdrop-blur-sm">
       <div className="container mx-auto px-4 py-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
