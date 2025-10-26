@@ -266,7 +266,7 @@ You can still ask questions about the document based on its filename, or try:
   }
 };
 
-export const processExcel = async (file: File): Promise<string> => {
+export const processExcel = async (file: File): Promise<{ content: string; excelData: any[] }> => {
   console.log('Processing Excel:', file.name);
 
   try {
@@ -274,18 +274,33 @@ export const processExcel = async (file: File): Promise<string> => {
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
 
     let content = `Excel File: ${file.name}\n\n`;
+    const excelData: any[] = [];
 
     // Process each sheet
     workbook.SheetNames.forEach((sheetName, index) => {
       const worksheet = workbook.Sheets[sheetName];
 
       // Convert to JSON format for better structure
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+      // Calculate maximum column count across all rows
+      const maxColCount = jsonData.reduce((max, row: any) => {
+        const rowLength = Array.isArray(row) ? row.length : 0;
+        return Math.max(max, rowLength);
+      }, 0);
+
+      // Store structured data for native viewing
+      excelData.push({
+        name: sheetName,
+        data: jsonData,
+        rowCount: jsonData.length,
+        colCount: maxColCount
+      });
 
       content += `Sheet ${index + 1}: ${sheetName}\n`;
       content += `Rows: ${jsonData.length}\n\n`;
 
-      // Format as table
+      // Format as table for text content
       if (jsonData.length > 0) {
         // Get headers (first row)
         const headers = jsonData[0] as any[];
@@ -306,7 +321,7 @@ export const processExcel = async (file: File): Promise<string> => {
       content += '\n';
     });
 
-    return content;
+    return { content, excelData };
   } catch (error) {
     console.error('Excel processing error:', error);
     throw new Error(`Failed to process Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -452,10 +467,11 @@ You can still ask questions about the image based on its filename or describe wh
   }
 };
 
-export const processDocument = async (file: File): Promise<{ content: string; htmlContent?: string; arrayBuffer?: ArrayBuffer }> => {
+export const processDocument = async (file: File): Promise<{ content: string; htmlContent?: string; arrayBuffer?: ArrayBuffer; excelData?: any[] }> => {
   let content = '';
   let htmlContent: string | undefined;
   let arrayBuffer: ArrayBuffer | undefined;
+  let excelData: any[] | undefined;
 
   // Check if it's an image file
   const isImage = file.type.startsWith('image/') ||
@@ -481,7 +497,9 @@ export const processDocument = async (file: File): Promise<{ content: string; ht
     file.name.endsWith('.xlsx') ||
     file.name.endsWith('.xls')
   ) {
-    content = await processExcel(file);
+    const excelResult = await processExcel(file);
+    content = excelResult.content;
+    excelData = excelResult.excelData;
   } else if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
     content = await processCSV(file);
   } else if (file.type === 'application/json' || file.name.endsWith('.json')) {
@@ -494,6 +512,7 @@ export const processDocument = async (file: File): Promise<{ content: string; ht
   return {
     content: cleanText(content),
     htmlContent,
-    arrayBuffer
+    arrayBuffer,
+    excelData
   };
 };

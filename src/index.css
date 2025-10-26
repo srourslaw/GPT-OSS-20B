@@ -41,6 +41,19 @@ code {
   line-height: 1.7;
 }
 
+/* Proper bidirectional text handling for mixed RTL/LTR content */
+.markdown-content p,
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6,
+.markdown-content li,
+.markdown-content blockquote {
+  unicode-bidi: isolate;
+}
+
 /* Code blocks with syntax highlighting */
 .markdown-content pre {
   @apply rounded-xl overflow-hidden my-4 shadow-md;

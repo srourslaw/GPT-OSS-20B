@@ -60,6 +60,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setTimeout(() => setCopiedCodeId(null), 2000);
   };
 
+  // Note: We use dir="auto" to let the browser automatically detect text direction
+  // This works better for mixed content (English + Arabic in same message)
+
   // Custom components for ReactMarkdown with enhanced styling
   const components = {
     code({ node, inline, className, children, ...props }: any) {
@@ -210,10 +213,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   )}
                   <div className="flex-1 min-w-0">
                     {message.isUser ? (
-                      <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                      <p className="text-sm whitespace-pre-wrap" dir="auto">
+                        {message.text}
+                      </p>
                     ) : (
                       <>
-                        <div className="prose prose-lg max-w-none markdown-content">
+                        <div className="prose prose-lg max-w-none markdown-content" dir="auto">
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             rehypePlugins={[rehypeHighlight]}

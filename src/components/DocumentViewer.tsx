@@ -12,6 +12,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
   const [isMaximized, setIsMaximized] = useState(false);
   const [imageZoom, setImageZoom] = useState(100);
   const [wordZoom, setWordZoom] = useState(100);
+  const [excelZoom, setExcelZoom] = useState(100);
+  const [activeSheet, setActiveSheet] = useState(0);
 
   // Zoom handlers - 10% increments for fine control
   const handleImageZoomIn = () => setImageZoom(prev => Math.min(prev + 10, 400));
@@ -26,6 +28,23 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
   const handleWordZoomReset = () => setWordZoom(100);
   const handleWordZoomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setWordZoom(Number(e.target.value));
+  };
+
+  const handleExcelZoomIn = () => setExcelZoom(prev => Math.min(prev + 10, 400));
+  const handleExcelZoomOut = () => setExcelZoom(prev => Math.max(prev - 10, 50));
+  const handleExcelZoomReset = () => setExcelZoom(100);
+  const handleExcelZoomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setExcelZoom(Number(e.target.value));
+  };
+
+  // Helper function to convert column index to Excel letter (0 -> A, 1 -> B, etc.)
+  const getColumnLetter = (index: number): string => {
+    let letter = '';
+    while (index >= 0) {
+      letter = String.fromCharCode(65 + (index % 26)) + letter;
+      index = Math.floor(index / 26) - 1;
+    }
+    return letter;
   };
 
   // Render Word document with docx-preview when component mounts or document changes
@@ -113,8 +132,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
         {document.isPDF && document.fileBlob && (
           <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
             <div className="px-3 py-2 bg-blue-50 border-b border-blue-200">
-              <p className="text-xs text-blue-800 font-medium">
-                📄 Native PDF Viewer • Text extracted for AI analysis
+              <p className="text-xs text-blue-800 font-medium flex items-center gap-1.5">
+                <span className="text-base">📄</span>
+                <span>PDF Document</span>
               </p>
             </div>
             <iframe
@@ -132,8 +152,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
           <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
             {/* Zoom Controls for Image */}
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-              <p className="text-xs text-gray-600">
-                📷 Image Preview • OCR text extracted below
+              <p className="text-xs text-gray-700 font-medium flex items-center gap-1.5">
+                <span className="text-base">
+                  {document.name.toLowerCase().endsWith('.png') ? '🖼️' :
+                   document.name.toLowerCase().endsWith('.jpg') || document.name.toLowerCase().endsWith('.jpeg') ? '📸' : '🖼️'}
+                </span>
+                <span>{document.name.toLowerCase().endsWith('.png') ? 'PNG' :
+                       document.name.toLowerCase().endsWith('.jpg') || document.name.toLowerCase().endsWith('.jpeg') ? 'JPG' : 'Image'} File</span>
               </p>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-700 font-semibold min-w-[3rem] text-center">{imageZoom}%</span>
@@ -198,8 +223,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             {/* Zoom Controls for Word */}
             <div className="px-3 py-2 bg-purple-50 border-b border-purple-200 flex items-center justify-between">
-              <p className="text-xs text-purple-800 font-medium">
-                📝 Native Word Document View • Full formatting preserved including colors and highlights
+              <p className="text-xs text-purple-800 font-medium flex items-center gap-1.5">
+                <span className="text-base">📝</span>
+                <span>Word Document</span>
               </p>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-purple-800 font-semibold min-w-[3rem] text-center">{wordZoom}%</span>
@@ -257,8 +283,134 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
           </div>
         )}
 
+        {/* Show native Excel spreadsheet viewer */}
+        {document.isExcel && document.excelData && document.excelData.length > 0 && (
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            {/* Zoom Controls for Excel */}
+            <div className="px-3 py-2 bg-green-50 border-b border-green-200 flex items-center justify-between">
+              <p className="text-xs text-green-800 font-medium flex items-center gap-1.5">
+                <span className="text-base">📊</span>
+                <span>Excel Spreadsheet{document.excelData.length > 1 ? ` • ${document.excelData.length} sheets` : ''}</span>
+              </p>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-green-800 font-semibold min-w-[3rem] text-center">{excelZoom}%</span>
+                <input
+                  type="range"
+                  min="50"
+                  max="400"
+                  step="5"
+                  value={excelZoom}
+                  onChange={handleExcelZoomChange}
+                  className="w-32 h-2 bg-green-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                  title={`Zoom: ${excelZoom}%`}
+                />
+                <div className="flex items-center gap-1.5 bg-white rounded-lg px-2 py-1 shadow-sm">
+                  <button
+                    onClick={handleExcelZoomOut}
+                    className="p-1.5 hover:bg-green-100 rounded transition-colors"
+                    title="Zoom out (-10%)"
+                    disabled={excelZoom <= 50}
+                  >
+                    <ZoomOut className="h-4 w-4 text-green-700" />
+                  </button>
+                  <div className="w-px h-4 bg-green-300"></div>
+                  <button
+                    onClick={handleExcelZoomReset}
+                    className="p-1.5 hover:bg-green-100 rounded transition-colors"
+                    title="Reset to 100%"
+                  >
+                    <RotateCcw className="h-4 w-4 text-green-700" />
+                  </button>
+                  <div className="w-px h-4 bg-green-300"></div>
+                  <button
+                    onClick={handleExcelZoomIn}
+                    className="p-1.5 hover:bg-green-100 rounded transition-colors"
+                    title="Zoom in (+10%)"
+                    disabled={excelZoom >= 400}
+                  >
+                    <ZoomIn className="h-4 w-4 text-green-700" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Sheet Tabs */}
+            {document.excelData.length > 1 && (
+              <div className="flex gap-1 px-2 py-2 bg-gray-100 border-b border-gray-300">
+                {document.excelData.map((sheet, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setActiveSheet(index)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                      activeSheet === index
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    }`}
+                  >
+                    {sheet.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Spreadsheet View */}
+            <div
+              className={`overflow-auto bg-white transition-all duration-300 ${
+                isMaximized ? 'max-h-[75vh]' : 'max-h-[45vh]'
+              }`}
+              style={{
+                transform: `scale(${excelZoom / 100})`,
+                transformOrigin: 'top left',
+                width: `${100 * (100 / excelZoom)}%`
+              }}
+            >
+              {document.excelData[activeSheet] && document.excelData[activeSheet].data.length > 0 && (
+                <table className="border-collapse w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 top-0 bg-gray-100 border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-600 z-20 w-12"></th>
+                      {Array.from({ length: document.excelData[activeSheet].colCount }, (_, colIndex) => (
+                        <th
+                          key={colIndex}
+                          className="sticky top-0 bg-gray-100 border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-600 z-10 min-w-[120px]"
+                        >
+                          {getColumnLetter(colIndex)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {document.excelData[activeSheet].data.map((row: any[], rowIndex) => {
+                      // Ensure row has the correct number of columns
+                      const normalizedRow = Array.from({ length: document.excelData[activeSheet].colCount }, (_, i) =>
+                        i < row.length ? row[i] : ''
+                      );
+
+                      return (
+                        <tr key={rowIndex}>
+                          <td className="sticky left-0 bg-gray-100 border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-600 text-center z-10">
+                            {rowIndex + 1}
+                          </td>
+                          {normalizedRow.map((cell, colIndex) => (
+                            <td
+                              key={colIndex}
+                              className="border border-gray-300 px-2 py-1 text-gray-800 hover:bg-blue-50 transition-colors whitespace-nowrap min-w-[120px]"
+                            >
+                              {cell !== null && cell !== undefined && cell !== '' ? String(cell) : ''}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Show plain text content for other formats or if native view not available */}
-        {!document.isPDF && !document.isWordDoc && document.content ? (
+        {!document.isPDF && !document.isWordDoc && !document.isExcel && document.content ? (
           <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed pr-2">
             {document.content}
           </div>

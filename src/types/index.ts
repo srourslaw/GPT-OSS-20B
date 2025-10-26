@@ -10,6 +10,15 @@ export interface Document {
   isPDF?: boolean; // Flag to indicate if this is a PDF file
   isWordDoc?: boolean; // Flag to indicate if this is a Word document
   wordArrayBuffer?: ArrayBuffer; // ArrayBuffer for native Word doc rendering with docx-preview
+  isExcel?: boolean; // Flag to indicate if this is an Excel file
+  excelData?: ExcelSheet[]; // Structured Excel data for native spreadsheet viewing
+}
+
+export interface ExcelSheet {
+  name: string;
+  data: any[][]; // 2D array of cell values
+  rowCount: number;
+  colCount: number;
 }
 
 export interface ChartData {

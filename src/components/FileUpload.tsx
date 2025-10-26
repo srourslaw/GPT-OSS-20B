@@ -42,6 +42,11 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
       const isWordDoc = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
         file.type === 'application/msword';
 
+      const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        file.type === 'application/vnd.ms-excel' ||
+        file.name.endsWith('.xlsx') ||
+        file.name.endsWith('.xls');
+
       let imageData: string | undefined;
       let fileBlob: string | undefined;
 
@@ -71,7 +76,9 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
         htmlContent: result.htmlContent,
         isPDF,
         isWordDoc,
-        wordArrayBuffer: result.arrayBuffer // Store ArrayBuffer for native Word rendering
+        wordArrayBuffer: result.arrayBuffer, // Store ArrayBuffer for native Word rendering
+        isExcel,
+        excelData: result.excelData // Store Excel data for native spreadsheet viewing
       };
 
       onDocumentUpload(document);
