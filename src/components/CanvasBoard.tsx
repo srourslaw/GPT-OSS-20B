@@ -633,6 +633,9 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
             }}
             onAIModify={async (instruction: string, selectedText: string) => {
               try {
+                // Check if this is a formatting action
+                const isFormattingAction = instruction.includes('FORMATTING_ACTION');
+
                 // Create a prompt for the AI to modify the selected text
                 const prompt = `${instruction}
 
@@ -641,7 +644,10 @@ Selected text to modify:
 ${selectedText}
 """
 
-Please provide ONLY the modified text without any explanations or additional commentary. Just return the improved/modified version of the text.`;
+${isFormattingAction
+  ? 'IMPORTANT: Return the restructured text with proper line breaks, numbered lists (1. 2. 3.), and spacing. Use plain text only - NO markdown symbols like **, *, #, >, etc. Just use line breaks (\\n), numbers, and spaces to create clean structure. Do not add any explanations or commentary.'
+  : 'IMPORTANT: Return ONLY plain text without any markdown formatting symbols (no **, *, #, >, etc.). The text editor will handle all formatting automatically. Just provide the modified text content itself without any markdown syntax, explanations, or additional commentary.'
+}`;
 
                 // Send to AI
                 const aiResponse = await sendMessage(

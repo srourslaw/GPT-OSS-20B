@@ -200,6 +200,9 @@ const DraftEditor: React.FC<DraftEditorProps> = ({
       // Capture the current selection and formatting
       const { from, to, $from } = editor.state.selection;
 
+      // Check if this is a formatting action
+      const isFormattingAction = instruction.includes('FORMATTING_ACTION');
+
       // Get the marks (formatting) from the selected text
       const marks = $from.marks();
 
@@ -217,28 +220,62 @@ const DraftEditor: React.FC<DraftEditorProps> = ({
       // Get the new cursor position after deletion
       const newPos = editor.state.selection.from;
 
-      // Insert the modified text
-      editor.chain().focus().insertContent(modifiedText).run();
+      if (isFormattingAction) {
+        // For formatting actions, convert line breaks into proper paragraphs
+        const lines = modifiedText.split('\n').filter(line => line.trim() !== '');
 
-      // Select the newly inserted text to apply formatting
-      const newTo = editor.state.selection.from;
-      editor.chain()
-        .focus()
-        .setTextSelection({ from: newPos, to: newTo })
-        .run();
+        // Build content with proper structure
+        const content: any[] = [];
 
-      // Reapply all the original marks (bold, italic, underline, etc.)
-      marks.forEach((mark) => {
-        editor.chain().focus().setMark(mark.type.name, mark.attrs).run();
-      });
+        lines.forEach((line) => {
+          const trimmedLine = line.trim();
 
-      // If the original text was in a heading, list, or other block type, maintain that
-      if (nodeType === 'heading' && nodeAttrs?.level) {
-        editor.chain().focus().setNode('heading', { level: nodeAttrs.level }).run();
+          // Check if it's a numbered list item (starts with number followed by . or ))
+          const numberMatch = trimmedLine.match(/^(\d+)[\.\)]\s+(.+)$/);
+
+          if (numberMatch) {
+            // It's a numbered list item
+            content.push({
+              type: 'paragraph',
+              content: [{ type: 'text', text: trimmedLine }]
+            });
+          } else if (trimmedLine) {
+            // Regular paragraph
+            content.push({
+              type: 'paragraph',
+              content: [{ type: 'text', text: trimmedLine }]
+            });
+          }
+        });
+
+        // Insert the structured content
+        editor.chain().focus().insertContent(content).run();
+      } else {
+        // For non-formatting actions, preserve original formatting
+        // Insert the modified text
+        editor.chain().focus().insertContent(modifiedText).run();
+
+        // Select the newly inserted text to apply formatting
+        const newTo = editor.state.selection.from;
+        editor.chain()
+          .focus()
+          .setTextSelection({ from: newPos, to: newTo })
+          .run();
+
+        // Reapply all the original marks (bold, italic, underline, etc.)
+        marks.forEach((mark) => {
+          editor.chain().focus().setMark(mark.type.name, mark.attrs).run();
+        });
+
+        // If the original text was in a heading, list, or other block type, maintain that
+        if (nodeType === 'heading' && nodeAttrs?.level) {
+          editor.chain().focus().setNode('heading', { level: nodeAttrs.level }).run();
+        }
       }
 
-      // Move cursor to the end of the modified text
-      editor.commands.setTextSelection(newTo);
+      // Move cursor to the end
+      const finalPos = editor.state.selection.from;
+      editor.commands.setTextSelection(finalPos);
 
       // Close the toolbar
       setSelectedText('');

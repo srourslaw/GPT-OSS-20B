@@ -8,7 +8,8 @@ import {
   Languages,
   Lightbulb,
   Send,
-  X
+  X,
+  AlignJustify
 } from 'lucide-react';
 
 interface SelectionToolbarProps {
@@ -92,6 +93,12 @@ const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
       label: 'Professional',
       action: 'Make this text more professional and formal',
       gradient: 'from-indigo-500 to-purple-500'
+    },
+    {
+      icon: AlignJustify,
+      label: 'Format',
+      action: 'FORMATTING_ACTION: Restructure this messy text with proper formatting. Add clear paragraph breaks, convert lists into numbered format (1. 2. 3.), add proper spacing between sections, and organize the content in a clean, readable structure. Use line breaks and proper indentation to make it professional and easy to read.',
+      gradient: 'from-teal-500 to-green-500'
     }
   ];
 
