@@ -22,15 +22,45 @@ code {
   }
 
   .chat-message {
-    @apply p-4 rounded-xl mb-3 max-w-[85%] shadow-sm;
+    @apply p-5 rounded-2xl mb-4 max-w-[85%] shadow-lg backdrop-blur-sm;
+    animation: fadeInUp 0.3s ease-out;
+    border: 1px solid rgba(255, 255, 255, 0.3);
   }
 
   .chat-message.user {
-    @apply bg-gradient-to-br from-gray-50 to-gray-100 text-gray-800 ml-auto border border-gray-200;
+    @apply bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 text-gray-800 ml-auto;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.1), 0 2px 4px -1px rgba(99, 102, 241, 0.06);
   }
 
   .chat-message.ai {
-    @apply bg-white border border-gray-200 text-gray-900;
+    @apply bg-gradient-to-br from-white to-gray-50 text-gray-900;
+    border: 1px solid rgba(156, 163, 175, 0.2);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 }
 
@@ -226,4 +256,234 @@ code {
 .markdown-content hr {
   @apply my-6 border-0 h-1 rounded;
   background: linear-gradient(to right, #e0e7ff, #c7d2fe, #e0e7ff);
+}
+
+/* Draft Editor Prose Styling - Enhanced for modern look */
+.ProseMirror {
+  @apply outline-none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  min-height: 100%;
+}
+
+.ProseMirror h1 {
+  @apply font-bold mt-8 mb-4 pb-3;
+  font-size: 2em; /* Relative to parent font size */
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  border-bottom: 3px solid #e0e7ff;
+}
+
+.ProseMirror h2 {
+  @apply font-bold mt-6 mb-3;
+  font-size: 1.6em; /* Relative to parent font size */
+  color: #4f46e5;
+}
+
+.ProseMirror h3 {
+  @apply font-semibold mt-5 mb-2;
+  font-size: 1.3em; /* Relative to parent font size */
+  color: #6366f1;
+}
+
+.ProseMirror h4 {
+  @apply font-semibold mt-4 mb-2;
+  font-size: 1.1em; /* Relative to parent font size */
+  color: #8b5cf6;
+}
+
+.ProseMirror p {
+  @apply mb-4 leading-relaxed;
+  color: #374151;
+  line-height: 1.8;
+  font-size: 1em; /* Base size, inherits from parent */
+}
+
+.ProseMirror strong {
+  @apply font-bold;
+  color: #1f2937;
+}
+
+.ProseMirror em {
+  @apply italic;
+  color: #6b7280;
+}
+
+.ProseMirror ul {
+  @apply my-4 pl-8;
+  list-style-type: disc;
+}
+
+.ProseMirror ol {
+  @apply my-4 pl-8;
+  list-style-type: decimal;
+}
+
+.ProseMirror li {
+  @apply leading-relaxed mb-2;
+  color: #4b5563;
+  line-height: 1.8;
+}
+
+.ProseMirror ul li::marker {
+  color: #8b5cf6;
+  font-weight: bold;
+  font-size: 1.2em;
+}
+
+.ProseMirror ol li::marker {
+  color: #8b5cf6;
+  font-weight: bold;
+}
+
+.ProseMirror ul ul,
+.ProseMirror ol ul,
+.ProseMirror ul ol,
+.ProseMirror ol ol {
+  @apply my-2 pl-6;
+}
+
+/* Nested lists */
+.ProseMirror li > p {
+  @apply my-0;
+}
+
+.ProseMirror li > ul,
+.ProseMirror li > ol {
+  @apply mt-2;
+}
+
+.ProseMirror blockquote {
+  @apply pl-4 py-3 my-4 italic rounded-r-lg border-l-4;
+  background: linear-gradient(to right, #eff6ff 0%, #dbeafe 100%);
+  border-left-color: #3b82f6;
+  color: #1e40af;
+}
+
+.ProseMirror code {
+  @apply px-2 py-1 rounded-md font-mono;
+  background: #f3f4f6;
+  color: #8b5cf6;
+  font-size: 0.85em; /* Relative to parent */
+}
+
+.ProseMirror pre {
+  @apply rounded-xl overflow-hidden my-4 p-4;
+  background: #f8f9fa !important;
+  border: 1px solid #e5e7eb;
+}
+
+.ProseMirror pre code {
+  @apply p-0 bg-transparent;
+  color: #1f2937;
+}
+
+.ProseMirror a {
+  @apply font-medium underline decoration-2 underline-offset-2;
+  color: #2563eb;
+  transition: all 0.2s;
+}
+
+.ProseMirror a:hover {
+  @apply decoration-4;
+  color: #1d4ed8;
+}
+
+.ProseMirror hr {
+  @apply my-8 border-0 h-1 rounded;
+  background: linear-gradient(to right, #e0e7ff, #c7d2fe, #e0e7ff);
+}
+
+/* Table styling in draft editor */
+.ProseMirror table {
+  @apply w-full border-collapse my-6 overflow-hidden rounded-lg;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+}
+
+.ProseMirror thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.ProseMirror th {
+  @apply px-4 py-3 font-bold text-white;
+  border: none;
+  text-align: left;
+}
+
+.ProseMirror td {
+  @apply px-4 py-3 border-b border-gray-200;
+  color: #374151;
+}
+
+.ProseMirror tbody tr:hover {
+  @apply bg-purple-50;
+}
+
+.ProseMirror tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Better spacing and readability */
+.ProseMirror > * + * {
+  margin-top: 0.75em;
+}
+
+.ProseMirror > h1,
+.ProseMirror > h2,
+.ProseMirror > h3,
+.ProseMirror > h4 {
+  margin-top: 1.5em;
+}
+
+/* Page Break Styling */
+.ProseMirror .page-break {
+  @apply my-8 relative;
+  height: 24px;
+  page-break-after: always;
+  break-after: page;
+}
+
+.ProseMirror .page-break::before {
+  content: '';
+  @apply absolute inset-0;
+  border-top: 2px dashed #cbd5e1;
+  top: 50%;
+}
+
+.ProseMirror .page-break::after {
+  content: 'Page Break';
+  @apply absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2;
+  @apply px-3 py-1 rounded-full text-xs font-semibold;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Automatic Page Boundaries */
+.draft-editor-container {
+  position: relative;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 1099px,
+    #e0e7ff 1099px,
+    #e0e7ff 1100px
+  );
+  background-size: 100% 1100px;
+  background-position: 0 0;
+}
+
+.draft-editor-container::before {
+  content: '';
+  position: absolute;
+  top: 1100px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent 0%, #c7d2fe 10%, #c7d2fe 90%, transparent 100%);
+  pointer-events: none;
 }

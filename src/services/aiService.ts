@@ -61,7 +61,8 @@ interface GPTOSSResponse {
 
 export const formatGeneralChatPrompt = (
   userQuestion: string,
-  conversationHistory?: string
+  conversationHistory?: string,
+  documentContext?: string
 ): string => {
   return `You are an advanced AI assistant powered by HussAI 20B. You excel at:
 - Providing helpful, accurate, and thoughtful responses
@@ -70,6 +71,8 @@ export const formatGeneralChatPrompt = (
 - Creative problem-solving and brainstorming
 - Technical assistance and coding help
 - Creating visualizations and charts when helpful
+- Analyzing documents and notes when provided
+${documentContext ? `\n\nAVAILABLE CONTEXT:\n${documentContext}\n` : ''}
 ${conversationHistory ? `\nCONVERSATION HISTORY:\n${conversationHistory}\n` : ''}
 
 CURRENT QUESTION: ${userQuestion}
@@ -77,6 +80,7 @@ CURRENT QUESTION: ${userQuestion}
 RESPONSE GUIDELINES:
 - Provide clear, concise, and helpful answers
 - Use examples when appropriate
+- If context is provided, use it to answer questions accurately
 - If you create visualizations, use the chart format below
 - Be conversational and engaging
 - Admit when you're uncertain about something
@@ -281,7 +285,7 @@ export const sendMessage = async (
 ): Promise<AIResponse> => {
   // Use different prompt based on chat mode
   const prompt = chatMode === 'general'
-    ? formatGeneralChatPrompt(message, conversationHistory)
+    ? formatGeneralChatPrompt(message, conversationHistory, documentContext)
     : formatPrompt(message, documentContext, conversationHistory, maxContextLength);
 
   let responseText: string;

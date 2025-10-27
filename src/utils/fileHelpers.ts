@@ -39,7 +39,9 @@ export const formatFileSize = (bytes: number): string => {
 
 export const cleanText = (text: string): string => {
   return text
-    .replace(/\s+/g, ' ') // Replace multiple whitespace with single space
+    .replace(/[^\S\n]+/g, ' ') // Replace multiple spaces/tabs (but NOT newlines) with single space
     .replace(/\n{3,}/g, '\n\n') // Replace 3+ newlines with double newline
+    .replace(/ +\n/g, '\n') // Remove trailing spaces before newlines
+    .replace(/\n +/g, '\n') // Remove leading spaces after newlines
     .trim();
 };

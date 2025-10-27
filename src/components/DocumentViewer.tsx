@@ -1,19 +1,59 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { File, Calendar, Type, Maximize2, Minimize2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
-import { Document } from '../types';
+import { File, Calendar, Type, Maximize2, Minimize2, ZoomIn, ZoomOut, RotateCcw, List, FileText } from 'lucide-react';
+import { Document, DocumentSection } from '../types';
 import { renderAsync } from 'docx-preview';
+import SectionSelector from './SectionSelector';
+import { countSelectedSections } from '../utils/sectionExtractor';
 
 interface DocumentViewerProps {
   document: Document;
+  onDocumentUpdate?: (document: Document) => void;
 }
 
-const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
+const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onDocumentUpdate }) => {
+  console.log('🔵 DocumentViewer MOUNTED/RENDERED for:', document.name);
+  console.log('  📊 Document sections:', document.sections);
+  console.log('  📊 Sections count:', document.sections?.length || 0);
+  console.log('  📊 Section mode:', document.sectionMode);
+  console.log('  📊 Upload time:', document.uploadedAt);
+
   const wordDocContainerRef = useRef<HTMLDivElement>(null);
   const [isMaximized, setIsMaximized] = useState(false);
   const [imageZoom, setImageZoom] = useState(100);
   const [wordZoom, setWordZoom] = useState(100);
   const [excelZoom, setExcelZoom] = useState(100);
   const [activeSheet, setActiveSheet] = useState(0);
+  const [showSections, setShowSections] = useState(() => {
+    const initial = !!(document.sections && document.sections.length > 0);
+    console.log('  🎬 Initial showSections state:', initial);
+    return initial;
+  });
+  const [sectionMode, setSectionMode] = useState<'full' | 'selected'>(document.sectionMode || 'full');
+
+  const hasSections = !!(document.sections && document.sections.length > 0);
+  console.log('  ✅ hasSections computed:', hasSections);
+
+  // Sync section mode when document changes
+  useEffect(() => {
+    console.log('🔄 useEffect TRIGGERED!');
+    console.log('  📄 Document name:', document.name);
+    console.log('  📄 Has sections:', hasSections);
+    console.log('  📄 Document.sections:', document.sections);
+    console.log('  📄 Current showSections state:', showSections);
+    console.log('  📄 About to set showSections to:', hasSections);
+
+    setSectionMode(document.sectionMode || 'full');
+    setShowSections(hasSections);
+
+    console.log('  ✅ State update commands issued');
+  }, [document.name, document.uploadedAt, hasSections]); // Re-run when document changes
+
+  // Component unmount
+  useEffect(() => {
+    return () => {
+      console.log('🔴 DocumentViewer UNMOUNTED for:', document.name);
+    };
+  }, [document.name]);
 
   // Zoom handlers - 10% increments for fine control
   const handleImageZoomIn = () => setImageZoom(prev => Math.min(prev + 10, 400));
@@ -35,6 +75,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
   const handleExcelZoomReset = () => setExcelZoom(100);
   const handleExcelZoomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setExcelZoom(Number(e.target.value));
+  };
+
+  // Section handlers
+  const handleSectionsChange = (sections: DocumentSection[]) => {
+    if (onDocumentUpdate) {
+      onDocumentUpdate({ ...document, sections });
+    }
+  };
+
+  const toggleSectionMode = () => {
+    const newMode = sectionMode === 'full' ? 'selected' : 'full';
+    setSectionMode(newMode);
+    if (onDocumentUpdate) {
+      onDocumentUpdate({ ...document, sectionMode: newMode });
+    }
   };
 
   // Helper function to convert column index to Excel letter (0 -> A, 1 -> B, etc.)
@@ -117,17 +172,98 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
           </div>
         </div>
 
-        <div className="mt-2 text-sm text-gray-600">
-          Content length: {document.content.length.toLocaleString()} characters
+        <div className="mt-2 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            Content length: {document.content.length.toLocaleString()} characters
+          </div>
+
+          {/* Section Controls */}
+          {(() => {
+            console.log('🎛️ TOGGLE BUTTONS CHECK:');
+            console.log('  📊 hasSections:', hasSections);
+            console.log('  📊 Will render toggle buttons:', hasSections ? 'YES ✅' : 'NO ❌');
+            return null;
+          })()}
+          {hasSections && (
+            <div className="flex items-center gap-2">
+              {/* Section Mode Toggle */}
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => {
+                    console.log('🔘 Full Document button clicked');
+                    setSectionMode('full');
+                    if (onDocumentUpdate) {
+                      onDocumentUpdate({ ...document, sectionMode: 'full' });
+                      console.log('✅ Document updated to full mode');
+                    }
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    sectionMode === 'full'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <FileText className="h-3.5 w-3.5 inline mr-1" />
+                  Full Document
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('🔘 Sections button clicked');
+                    setSectionMode('selected');
+                    if (onDocumentUpdate) {
+                      onDocumentUpdate({ ...document, sectionMode: 'selected' });
+                      console.log('✅ Document updated to selected mode');
+                    }
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    sectionMode === 'selected'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <List className="h-3.5 w-3.5 inline mr-1" />
+                  Sections ({countSelectedSections(document.sections!).selected}/{countSelectedSections(document.sections!).total})
+                </button>
+              </div>
+
+              {/* Toggle Sections Sidebar */}
+              <button
+                onClick={() => setShowSections(!showSections)}
+                className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                {showSections ? 'Hide' : 'Show'} Sections
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Document Content */}
-      <div
-        className={`document-viewer overflow-y-auto transition-all duration-300 ${
-          isMaximized ? 'max-h-[80vh]' : 'max-h-[50vh]'
-        }`}
-      >
+      {/* Main Content Area with Sections Sidebar */}
+      <div className="flex gap-4">
+        {/* Sections Sidebar */}
+        {(() => {
+          console.log('🎨 RENDER TIME CHECK:');
+          console.log('  📊 hasSections:', hasSections);
+          console.log('  📊 showSections:', showSections);
+          console.log('  📊 Condition (hasSections && showSections):', hasSections && showSections);
+          console.log('  📊 Will render sidebar:', hasSections && showSections ? 'YES ✅' : 'NO ❌');
+          return null;
+        })()}
+        {hasSections && showSections && (
+          <div className="w-64 flex-shrink-0 border border-gray-200 rounded-lg bg-white overflow-hidden">
+            <SectionSelector
+              sections={document.sections!}
+              onSectionsChange={handleSectionsChange}
+            />
+          </div>
+        )}
+
+        {/* Document Content */}
+        <div
+          className={`flex-1 document-viewer overflow-y-auto transition-all duration-300 ${
+            isMaximized ? 'max-h-[80vh]' : 'max-h-[50vh]'
+          }`}
+        >
         {/* Show PDF viewer for PDF files */}
         {document.isPDF && document.fileBlob && (
           <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
@@ -424,6 +560,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document }) => {
             <p className="text-sm">The document might be empty or failed to process</p>
           </div>
         )}
+        </div>
       </div>
 
       {/* Actions */}

@@ -1,3 +1,15 @@
+export interface DocumentSection {
+  id: string;
+  title: string;
+  level: number; // Heading level (1, 2, 3, etc.)
+  content: string;
+  startPage?: number; // For PDFs
+  endPage?: number;
+  pageNumber?: number; // Page number from TOC
+  selected: boolean; // Whether this section is selected
+  children?: DocumentSection[]; // Nested sections
+}
+
 export interface Document {
   name: string;
   type: string;
@@ -12,6 +24,8 @@ export interface Document {
   wordArrayBuffer?: ArrayBuffer; // ArrayBuffer for native Word doc rendering with docx-preview
   isExcel?: boolean; // Flag to indicate if this is an Excel file
   excelData?: ExcelSheet[]; // Structured Excel data for native spreadsheet viewing
+  sections?: DocumentSection[]; // Extracted document sections
+  sectionMode?: 'full' | 'selected'; // Whether to use full document or selected sections
 }
 
 export interface ExcelSheet {
@@ -59,4 +73,26 @@ export interface ChatModeOption {
   name: string;
   description: string;
   icon: string;
+}
+
+// Canvas Types
+export type WindowType = 'chat' | 'document' | 'notes' | 'web' | 'draft';
+
+export interface CanvasWindow {
+  id: string;
+  type: WindowType;
+  title: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isMinimized: boolean;
+  isMaximized: boolean;
+  zIndex: number;
+  data?: any; // Window-specific data (chat messages, document content, etc.)
+}
+
+export interface CanvasLayout {
+  windows: CanvasWindow[];
+  nextZIndex: number;
 }

@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Download, FileText, FileJson, File, Brain, Zap, Database, Info, Settings, MessageSquare, ChevronDown } from 'lucide-react';
+import { X, Download, FileText, FileJson, File, Brain, Zap, Database, Info, Settings, MessageSquare, ChevronDown, Layout, Grid } from 'lucide-react';
 import Header from './components/Header';
 import FileUpload from './components/FileUpload';
 import DocumentViewer from './components/DocumentViewer';
 import ChatInterface from './components/ChatInterface';
 import APIGuideModal from './components/APIGuideModal';
+import CanvasBoard from './components/CanvasBoard';
 import { Document, ChatMessage, AIModel, ChatMode } from './types';
 import { AI_MODELS, CONTEXT_PRESETS, ContextPreset, CHAT_MODES } from './utils/constants';
 import { sendMessage } from './services/aiService';
 import { exportChatAsMarkdown, exportChatAsJSON, exportChatAsText } from './utils/exportHelpers';
+import { getSelectedSectionsContent } from './utils/sectionExtractor';
+
+type ViewMode = 'standard' | 'canvas';
 
 function App() {
   const [document, setDocument] = useState<Document | null>(null);
@@ -22,6 +26,14 @@ function App() {
   const [showAPIGuide, setShowAPIGuide] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>('general'); // Default to general chat
   const [showChatModeSelector, setShowChatModeSelector] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('standard'); // Toggle between standard and canvas mode
+
+  // Canvas state persistence
+  const [canvasWindows, setCanvasWindows] = useState<any[]>([]);
+  const [canvasDocument, setCanvasDocument] = useState<Document | null>(null);
+  const [canvasNotes, setCanvasNotes] = useState<string>('');
+  const [canvasChatMessages, setCanvasChatMessages] = useState<ChatMessage[]>([]);
+
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const chatModeMenuRef = useRef<HTMLDivElement>(null);
@@ -180,9 +192,25 @@ function App() {
         })
         .join('\n\n');
 
+      // Build document context respecting section selection
+      let documentContext = '';
+      if (document) {
+        if (document.sectionMode === 'selected' && document.sections && document.sections.length > 0) {
+          const selectedContent = getSelectedSectionsContent(document.sections);
+          console.log('🔍 SELECTED CONTENT LENGTH:', selectedContent.length, 'characters');
+          console.log('🔍 SELECTED CONTENT PREVIEW:', selectedContent.substring(0, 500));
+
+          // Use selected content even if empty - this ensures AI only sees what's selected
+          documentContext = selectedContent || '[No content available for selected sections]';
+        } else {
+          documentContext = document.content;
+          console.log('🔍 USING FULL DOCUMENT:', documentContext.length, 'characters');
+        }
+      }
+
       const aiResponse = await sendMessage(
         message,
-        document?.content || '', // Pass empty string if no document in general mode
+        documentContext, // Use processed document context
         selectedModel.id,
         conversationHistory || undefined,
         selectedContextPreset.tokens,
@@ -222,8 +250,63 @@ function App() {
         onShowAPIGuide={() => setShowAPIGuide(true)}
       />
 
-      {/* Enhanced Features Banner */}
-      {document && (
+      {/* View Mode Toggle */}
+      <div className="max-w-[1920px] mx-auto px-6 pt-3">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setViewMode('standard')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
+                viewMode === 'standard'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              <Grid className="h-4 w-4" />
+              <span className="text-sm font-semibold">Standard View</span>
+            </button>
+            <button
+              onClick={() => setViewMode('canvas')}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
+                viewMode === 'canvas'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              <Layout className="h-4 w-4" />
+              <span className="text-sm font-semibold">Canvas Mode</span>
+            </button>
+          </div>
+          {viewMode === 'canvas' && (
+            <div className="text-xs text-gray-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200">
+              💡 <span className="font-medium">Tip:</span> Create multiple windows to organize your workspace
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Canvas Mode */}
+      {viewMode === 'canvas' ? (
+        <CanvasBoard
+          document={document}
+          messages={messages}
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
+          selectedModel={selectedModel}
+          selectedContextPreset={selectedContextPreset}
+          canvasWindows={canvasWindows}
+          onCanvasWindowsChange={setCanvasWindows}
+          canvasDocument={canvasDocument}
+          onCanvasDocumentChange={setCanvasDocument}
+          canvasNotes={canvasNotes}
+          onCanvasNotesChange={setCanvasNotes}
+          canvasChatMessages={canvasChatMessages}
+          onCanvasChatMessagesChange={setCanvasChatMessages}
+        />
+      ) : (
+        <>
+          {/* Enhanced Features Banner */}
+          {document && (
         <div className="max-w-[1920px] mx-auto px-6 pt-3">
           <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg px-4 py-2.5 shadow-sm">
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -354,7 +437,11 @@ function App() {
                   <div className="w-1 h-6 bg-gradient-to-b from-green-500 to-emerald-600 rounded-full"></div>
                   <h2 className="text-xl font-bold text-gray-900">Document Content</h2>
                 </div>
-                <DocumentViewer document={document} />
+                <DocumentViewer
+                  key={document.name + document.uploadedAt.getTime()}
+                  document={document}
+                  onDocumentUpdate={setDocument}
+                />
               </div>
             )}
           </div>
@@ -497,6 +584,8 @@ function App() {
           </div>
         </div>
       </div>
+        </>
+      )}
 
       {/* Context Guide Modal */}
       {showGuideModal && (

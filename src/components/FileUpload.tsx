@@ -3,6 +3,7 @@ import { Upload, File, AlertCircle, CheckCircle } from 'lucide-react';
 import { Document } from '../types';
 import { validateFile, formatFileSize } from '../utils/fileHelpers';
 import { processDocument } from '../services/documentService';
+import { extractSectionsFromText, extractSectionsFromWordDoc, buildSectionHierarchy } from '../utils/sectionExtractor';
 
 interface FileUploadProps {
   onDocumentUpload: (document: Document) => void;
@@ -78,8 +79,37 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
         isWordDoc,
         wordArrayBuffer: result.arrayBuffer, // Store ArrayBuffer for native Word rendering
         isExcel,
-        excelData: result.excelData // Store Excel data for native spreadsheet viewing
+        excelData: result.excelData, // Store Excel data for native spreadsheet viewing
+        sectionMode: 'full' // Default to full document mode
       };
+
+      // Extract sections for supported document types
+      try {
+        if (isWordDoc && result.arrayBuffer) {
+          // Extract sections from Word document
+          const sections = await extractSectionsFromWordDoc(result.arrayBuffer);
+          console.log('📄 Word sections extracted:', sections.length);
+          if (sections.length > 0) {
+            document.sections = buildSectionHierarchy(sections);
+            console.log('✅ Sections hierarchy built:', document.sections);
+          }
+        } else if (!isImage && !isExcel && result.content) {
+          // Extract sections from text content (PDFs, TXT, etc.)
+          console.log('📄 Extracting sections from text content (length:', result.content.length, ')');
+          console.log('📄 First 2000 characters of extracted text:', result.content.substring(0, 2000));
+          const sections = extractSectionsFromText(result.content);
+          console.log('📄 Sections found:', sections.length);
+          if (sections.length > 0) {
+            document.sections = buildSectionHierarchy(sections);
+            console.log('✅ Sections hierarchy built:', document.sections);
+          } else {
+            console.log('⚠️ No sections detected in document');
+          }
+        }
+      } catch (sectionError) {
+        console.error('❌ Failed to extract sections:', sectionError);
+        // Continue without sections if extraction fails
+      }
 
       onDocumentUpload(document);
       setSuccess(true);

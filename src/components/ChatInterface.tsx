@@ -96,64 +96,60 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </code>
         </div>
       ) : (
-        <code className="px-1.5 py-0.5 bg-purple-100 text-purple-800 rounded font-mono text-sm" {...props}>
+        <code className="px-2 py-1 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-900 rounded-md font-mono text-sm font-semibold border border-purple-200 shadow-sm" {...props}>
           {children}
         </code>
       );
     },
     h1: ({ children }: any) => (
-      <h1 className="text-2xl font-bold text-gray-900 mt-6 mb-4 pb-2 border-b-2 border-gradient-to-r from-purple-500 to-blue-500">{children}</h1>
+      <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mt-6 mb-4 pb-3 border-b-2 border-indigo-200">{children}</h1>
     ),
     h2: ({ children }: any) => (
-      <h2 className="text-xl font-bold text-gray-800 mt-5 mb-3 flex items-center gap-2">
-        <span className="w-1 h-6 bg-gradient-to-b from-purple-500 to-blue-500 rounded-full"></span>
-        {children}
-      </h2>
+      <h2 className="text-xl font-bold text-indigo-700 mt-5 mb-3">{children}</h2>
     ),
     h3: ({ children }: any) => (
       <h3 className="text-lg font-semibold text-gray-800 mt-4 mb-2">{children}</h3>
     ),
     ul: ({ children }: any) => (
-      <ul className="space-y-2 my-3">{children}</ul>
+      <ul className="space-y-2 my-3 ml-6 list-disc">{children}</ul>
     ),
     ol: ({ children }: any) => (
-      <ol className="space-y-2 my-3 list-decimal list-inside">{children}</ol>
+      <ol className="space-y-2 my-3 ml-6 list-decimal">{children}</ol>
     ),
     li: ({ children }: any) => (
-      <li className="text-gray-700 leading-relaxed flex items-start gap-2">
-        <span className="text-purple-500 mt-1.5">•</span>
-        <span className="flex-1">{children}</span>
+      <li className="text-gray-700 leading-relaxed pl-2">
+        {children}
       </li>
     ),
     blockquote: ({ children }: any) => (
-      <blockquote className="border-l-4 border-blue-500 bg-blue-50 pl-4 py-2 my-4 italic text-gray-700">
+      <blockquote className="border-l-4 border-gradient-to-b from-indigo-500 to-purple-600 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 pl-5 py-3 my-4 rounded-r-lg shadow-sm text-gray-800 font-medium">
         {children}
       </blockquote>
     ),
     table: ({ children }: any) => (
-      <div className="overflow-x-auto my-4">
-        <table className="min-w-full divide-y divide-gray-300 border border-gray-300 rounded-lg">
+      <div className="overflow-x-auto my-4 rounded-lg shadow-md">
+        <table className="min-w-full divide-y divide-gray-300 border-2 border-indigo-200 rounded-lg overflow-hidden">
           {children}
         </table>
       </div>
     ),
     thead: ({ children }: any) => (
-      <thead className="bg-gradient-to-r from-purple-50 to-blue-50">{children}</thead>
+      <thead className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">{children}</thead>
     ),
     th: ({ children }: any) => (
-      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-b border-gray-300">
+      <th className="px-4 py-3 text-left text-sm font-bold text-white border-b-2 border-white/20">
         {children}
       </th>
     ),
     td: ({ children }: any) => (
-      <td className="px-4 py-3 text-sm text-gray-700 border-b border-gray-200">
+      <td className="px-4 py-3 text-sm text-gray-800 border-b border-gray-200 bg-white hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-colors">
         {children}
       </td>
     ),
     a: ({ children, href }: any) => (
       <a
         href={href}
-        className="text-blue-600 hover:text-blue-800 underline font-medium"
+        className="text-indigo-600 hover:text-purple-700 underline decoration-2 underline-offset-2 hover:decoration-purple-500 font-semibold transition-all hover:bg-indigo-50 px-1 rounded"
         target="_blank"
         rel="noopener noreferrer"
       >
@@ -161,33 +157,36 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       </a>
     ),
     p: ({ children }: any) => (
-      <p className="text-gray-700 leading-relaxed my-2">{children}</p>
+      <p className="text-gray-800 leading-relaxed my-3 text-[15px]">{children}</p>
     ),
     strong: ({ children }: any) => (
-      <strong className="font-bold text-gray-900">{children}</strong>
+      <strong className="font-bold text-gray-900 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">{children}</strong>
     ),
     em: ({ children }: any) => (
-      <em className="italic text-gray-800">{children}</em>
+      <em className="italic text-indigo-700 font-medium">{children}</em>
+    ),
+    hr: () => (
+      <hr className="my-6 border-0 h-1 rounded bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200" />
     ),
   };
 
   return (
     <div className="flex flex-col h-[calc(100vh-280px)] min-h-[700px]">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 rounded-2xl border border-gray-200 shadow-inner">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <div className="text-center text-gray-500 py-12">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
-                <Bot className="h-8 w-8 text-purple-600" />
+            <div className="text-center text-gray-500 py-12 animate-fadeIn">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-purple-500 via-indigo-500 to-blue-500 flex items-center justify-center shadow-2xl animate-pulse">
+                <Bot className="h-10 w-10 text-white" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to assist you</h3>
+              <h3 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-3">Ready to assist you</h3>
               {chatMode === 'general' ? (
-                <p className="text-sm text-gray-600">Ask me anything - from coding help to creative ideas!</p>
+                <p className="text-sm text-gray-600 font-medium">Ask me anything - from coding help to creative ideas!</p>
               ) : disabled ? (
-                <p className="text-sm text-gray-600">Upload a document to start document Q&A</p>
+                <p className="text-sm text-gray-600 font-medium">Upload a document to start document Q&A</p>
               ) : (
-                <p className="text-sm text-gray-600">Ask any question about your document</p>
+                <p className="text-sm text-gray-600 font-medium">Ask any question about your document</p>
               )}
             </div>
           </div>
@@ -202,18 +201,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               >
                 <div className="flex items-start space-x-3">
                   {!message.isUser && (
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg">
                       <Bot className="h-4 w-4 text-white" />
                     </div>
                   )}
                   {message.isUser && (
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-200 to-blue-300 flex items-center justify-center">
-                      <MessageCircle className="h-4 w-4 text-blue-600" />
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 via-purple-400 to-pink-400 flex items-center justify-center shadow-lg">
+                      <User className="h-4 w-4 text-white" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
                     {message.isUser ? (
-                      <p className="text-sm whitespace-pre-wrap" dir="auto">
+                      <p className="text-sm font-medium text-gray-800 leading-relaxed whitespace-pre-wrap" dir="auto">
                         {message.text}
                       </p>
                     ) : (
@@ -292,7 +291,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       </div>
 
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="mt-4">
+      <form onSubmit={handleSubmit} className="mt-6">
         <div className="flex space-x-3">
           <input
             type="text"
@@ -306,14 +305,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 : "Ask a question about your document..."
             }
             disabled={disabled || isLoading}
-            className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all shadow-sm hover:border-gray-400 text-sm"
+            className="flex-1 px-5 py-4 border-2 border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl hover:border-gray-400 text-sm font-medium bg-white"
           />
           <button
             type="submit"
             disabled={!inputMessage.trim() || disabled || isLoading}
-            className="px-5 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg flex items-center gap-2 font-medium"
+            className="px-6 py-4 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white rounded-2xl hover:from-purple-700 hover:via-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center gap-2 font-semibold"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-5 w-5" />
             <span className="hidden sm:inline">Send</span>
           </button>
         </div>

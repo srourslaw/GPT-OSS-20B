@@ -72,10 +72,32 @@ export const processPDF = async (file: File): Promise<string> => {
         console.log(`Processing page ${pageNum}/${maxPages}...`);
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
-        fullText += pageText + '\n';
+
+        // Properly extract text with line breaks preserved
+        let pageText = '';
+        let lastY = -1;
+
+        for (const item of textContent.items) {
+          const text = (item as any).str;
+          if (!text) continue;
+
+          // Get the y-position (vertical position on page)
+          const transform = (item as any).transform;
+          const currentY = transform ? transform[5] : -1;
+
+          // If y-position changed significantly, we're on a new line
+          if (lastY !== -1 && Math.abs(currentY - lastY) > 5) {
+            pageText += '\n';
+          } else if (pageText && !pageText.endsWith(' ') && !pageText.endsWith('\n')) {
+            // Add space between items on same line
+            pageText += ' ';
+          }
+
+          pageText += text;
+          lastY = currentY;
+        }
+
+        fullText += pageText + '\n\n'; // Double newline between pages
         console.log(`Page ${pageNum} text length:`, pageText.length);
       } catch (pageError) {
         console.warn(`Failed to process page ${pageNum}:`, pageError);
