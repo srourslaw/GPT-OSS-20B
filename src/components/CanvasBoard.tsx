@@ -12,7 +12,7 @@ import 'highlight.js/styles/github.css';
 import { CanvasWindow, WindowType, Document, ChatMessage, AIModel } from '../types';
 import { sendMessage } from '../services/aiService';
 import { getSelectedSectionsContent } from '../utils/sectionExtractor';
-import { exportToPDF, exportToWord } from '../utils/exportUtils';
+import { exportToPDF, exportToWord, exportToHTML } from '../utils/exportUtils';
 import { markdownToHtml } from '../utils/markdownUtils';
 
 interface CanvasBoardProps {
@@ -253,6 +253,35 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
         documentContext += `\n\nUser Notes:\n${canvasNotes}`;
       }
 
+      // Add Web Search context - include URLs of open web search windows
+      const webSearchWindows = windows.filter(w => w.type === 'web');
+      if (webSearchWindows.length > 0) {
+        const openUrls = webSearchWindows
+          .map(w => webUrls[w.id])
+          .filter(url => url && url.trim())
+          .map(url => {
+            try {
+              const urlObj = new URL(url);
+              // Extract meaningful page title from path
+              const path = urlObj.pathname;
+              const pageName = path.split('/').filter(p => p).pop() || '';
+              const decodedName = decodeURIComponent(pageName).replace(/_/g, ' ');
+              return `- ${urlObj.hostname}${path} ${decodedName ? `(Page: "${decodedName}")` : ''}\n  Full URL: ${url}`;
+            } catch {
+              return `- ${url}`;
+            }
+          });
+
+        if (openUrls.length > 0) {
+          documentContext += `\n\n=== WEB BROWSER CONTEXT ===\nYou can see the following web page(s) that the user is currently viewing:\n${openUrls.join('\n')}\n\nCRITICAL INSTRUCTIONS:\n- When the user says "check my web search", "what am I looking at", "explain this page", "tell me about this topic", or similar phrases, they are asking about the URL(s) listed above\n- You MUST use the page title from the URL to identify the topic\n- For Wikipedia URLs like "/wiki/Quantum_entanglement", the topic is "Quantum entanglement" - provide a detailed explanation of this topic\n- DO NOT say "I can't see the URL" or "I need more details" - the URL is provided above\n- If the user asks about "this page" or "this topic", immediately explain the subject shown in the URL\n- Extract the topic from the URL path and provide comprehensive information about it\n=== END WEB CONTEXT ===`;
+
+          console.log('🌐 Web Search Context Added:', openUrls);
+        }
+      }
+
+      console.log('📋 Full Document Context Length:', documentContext.length);
+      console.log('📋 Document Context Preview:', documentContext.substring(0, 500));
+
       // Build conversation history
       const recentMessages = chatMessages.slice(-20);
       const conversationHistory = recentMessages
@@ -262,12 +291,39 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
         })
         .join('\n\n');
 
+      // Enhance the message with web page context if available
+      let enhancedMessage = message;
+      const activeWebWindows = windows.filter(w => w.type === 'web');
+      if (activeWebWindows.length > 0) {
+        const currentWebUrls = activeWebWindows
+          .map(w => webUrls[w.id])
+          .filter(url => url && url.trim());
+
+        if (currentWebUrls.length > 0) {
+          // Extract topic from URL for better context
+          const urlInfo = currentWebUrls.map(url => {
+            try {
+              const urlObj = new URL(url);
+              const path = urlObj.pathname;
+              const pageName = path.split('/').filter(p => p).pop() || '';
+              const topic = decodeURIComponent(pageName).replace(/_/g, ' ');
+              return topic ? `"${topic}" (${url})` : url;
+            } catch {
+              return url;
+            }
+          }).join(', ');
+
+          enhancedMessage = `[I'm currently viewing: ${urlInfo}]\n\nUser question: ${message}`;
+          console.log('💬 Enhanced message:', enhancedMessage);
+        }
+      }
+
       // Call AI service with enhanced context
       // Use 'document' mode when we have context, otherwise 'general'
-      const chatMode = (canvasDocument || canvasNotes) ? 'document' : 'general';
+      const chatMode = (canvasDocument || canvasNotes || activeWebWindows.length > 0) ? 'document' : 'general';
 
       const aiResponse = await sendMessage(
-        message,
+        enhancedMessage,
         documentContext || '',
         selectedModel.id,
         conversationHistory || undefined,
@@ -442,15 +498,17 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
   const renderWindowContent = (window: CanvasWindow) => {
     switch (window.type) {
       case 'chat':
+        const openWebPages = windows.filter(w => w.type === 'web' && webUrls[w.id]);
         return (
           <div className="h-full flex flex-col">
             {/* Context indicator */}
-            {(canvasDocument || canvasNotes) && (
+            {(canvasDocument || canvasNotes || openWebPages.length > 0) && (
               <div className="mx-4 mt-4 mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs text-blue-800 font-medium">
                   📎 AI has access to:
                   {canvasDocument && <span className="ml-2">📄 Document</span>}
                   {canvasNotes && <span className="ml-2">📝 Notes</span>}
+                  {openWebPages.length > 0 && <span className="ml-2">🌐 {openWebPages.length} Web Page{openWebPages.length > 1 ? 's' : ''}</span>}
                 </p>
               </div>
             )}
@@ -544,28 +602,31 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
         );
       case 'document':
         return (
-          <div className="p-4 h-full overflow-auto flex flex-col gap-4">
-            {/* File upload section - always visible */}
-            <div>
+          <div className="h-full flex flex-col bg-white">
+            {/* File upload section - ALWAYS visible at top with prominent styling */}
+            <div className="flex-shrink-0 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border-b-2 border-blue-200">
+              <div className="mb-2">
+                <h3 className="text-sm font-bold text-gray-900">📤 Upload Document</h3>
+              </div>
               <FileUpload onDocumentUpload={handleDocumentUpload} />
             </div>
 
-            {/* Document viewer */}
-            {canvasDocument && (
-              <>
-                <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-                  <p className="text-sm font-semibold text-gray-900">📄 {canvasDocument.name}</p>
-                  <button
-                    onClick={() => {
-                      setCanvasDocument(null);
-                      onCanvasDocumentChange(null);
-                    }}
-                    className="text-xs text-red-600 hover:text-red-700 font-medium"
-                  >
-                    Clear
-                  </button>
-                </div>
-                <div className="flex-1 overflow-auto">
+            {/* Document viewer - scrollable content area */}
+            <div className="flex-1 overflow-auto p-4">
+              {canvasDocument ? (
+                <>
+                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-200">
+                    <p className="text-sm font-semibold text-gray-900">📄 {canvasDocument.name}</p>
+                    <button
+                      onClick={() => {
+                        setCanvasDocument(null);
+                        onCanvasDocumentChange(null);
+                      }}
+                      className="px-3 py-1 text-xs text-white bg-red-600 hover:bg-red-700 rounded font-medium transition-colors"
+                    >
+                      Clear Document
+                    </button>
+                  </div>
                   <DocumentViewer
                     key={canvasDocument.name + canvasDocument.uploadedAt.getTime()}
                     document={canvasDocument}
@@ -574,15 +635,16 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
                       onCanvasDocumentChange(updatedDoc);
                     }}
                   />
+                </>
+              ) : (
+                <div className="h-full flex items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <p className="text-sm font-medium mb-1">No document loaded</p>
+                    <p className="text-xs">Use the upload section above to add a document</p>
+                  </div>
                 </div>
-              </>
-            )}
-
-            {!canvasDocument && (
-              <div className="flex-1 flex items-center justify-center text-gray-500">
-                <p className="text-sm">Upload a document to view it here</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         );
       case 'notes':
@@ -627,6 +689,14 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
               const content = draftContents[window.id] || displayContent;
               if (content && content.trim()) {
                 exportToWord(content, 'draft-output.docx');
+              } else {
+                alert('No content to export. Please add content to the draft first.');
+              }
+            }}
+            onExportHTML={() => {
+              const content = draftContents[window.id] || displayContent;
+              if (content && content.trim()) {
+                exportToHTML(content, 'draft-output.html');
               } else {
                 alert('No content to export. Please add content to the draft first.');
               }
@@ -900,24 +970,25 @@ ${isFormattingAction
         backgroundSize: '20px 20px'
       }}></div>
 
-      {/* Toolbar */}
-      <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
-        <div className="bg-white rounded-lg shadow-lg border border-gray-300 px-3 py-2 flex items-center gap-2">
-          <Layout className="h-5 w-5 text-blue-600" />
-          <span className="text-sm font-semibold text-gray-900">Canvas Mode</span>
+      {/* Toolbar - Top Right */}
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-3">
+        <div className="bg-white/90 backdrop-blur-sm rounded-full shadow-lg border border-gray-200 px-4 py-2 flex items-center gap-2">
+          <Layout className="h-4 w-4 text-blue-600" />
+          <span className="text-xs font-semibold text-gray-700">Canvas Mode</span>
         </div>
+
 
         <div className="relative">
           <button
             onClick={() => setShowAddMenu(!showAddMenu)}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg px-4 py-2 flex items-center gap-2 hover:from-blue-700 hover:to-purple-700 transition-all"
+            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-xl flex items-center justify-center hover:from-blue-700 hover:to-purple-700 transition-all hover:scale-110 active:scale-95"
+            title="Add Window"
           >
-            <Plus className="h-5 w-5" />
-            <span className="text-sm font-semibold">Add Window</span>
+            <Plus className="h-6 w-6" />
           </button>
 
           {showAddMenu && (
-            <div className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 min-w-[200px] z-50">
+            <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 min-w-[240px] z-50 overflow-hidden">
               <button
                 onClick={() => createWindow('chat', 'AI Chat', { messages: [] })}
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100"
@@ -986,6 +1057,7 @@ ${isFormattingAction
                 {window.type === 'chat' && <MessageSquare className="h-4 w-4" />}
                 {window.type === 'document' && <FileText className="h-4 w-4" />}
                 {window.type === 'notes' && <StickyNote className="h-4 w-4" />}
+                {window.type === 'draft' && <Edit3 className="h-4 w-4" />}
                 {window.type === 'web' && <Globe className="h-4 w-4" />}
                 {window.title}
               </button>

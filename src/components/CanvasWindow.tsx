@@ -26,8 +26,9 @@ const CanvasWindow: React.FC<CanvasWindowProps> = ({
   const windowRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [resizeDirection, setResizeDirection] = useState<'se' | 'sw' | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, windowX: 0 });
 
   // Handle dragging
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -43,38 +44,62 @@ const CanvasWindow: React.FC<CanvasWindowProps> = ({
       const newX = Math.max(0, e.clientX - dragStart.x);
       const newY = Math.max(0, e.clientY - dragStart.y);
       onUpdatePosition(newX, newY);
-    } else if (isResizing) {
-      const newWidth = Math.max(300, resizeStart.width + (e.clientX - resizeStart.x));
-      const newHeight = Math.max(200, resizeStart.height + (e.clientY - resizeStart.y));
-      onUpdateSize(newWidth, newHeight);
+    } else if (isResizing && resizeDirection) {
+      if (resizeDirection === 'se') {
+        // Bottom-right resize
+        const newWidth = Math.max(300, resizeStart.width + (e.clientX - resizeStart.x));
+        const newHeight = Math.max(200, resizeStart.height + (e.clientY - resizeStart.y));
+        onUpdateSize(newWidth, newHeight);
+      } else if (resizeDirection === 'sw') {
+        // Bottom-left resize
+        const deltaX = e.clientX - resizeStart.x;
+        const newWidth = Math.max(300, resizeStart.width - deltaX);
+        const newHeight = Math.max(200, resizeStart.height + (e.clientY - resizeStart.y));
+
+        // Only update position if width actually changed (not at minimum)
+        if (newWidth > 300 || deltaX < 0) {
+          const newX = resizeStart.windowX + deltaX;
+          onUpdatePosition(newX, windowData.y);
+        }
+        onUpdateSize(newWidth, newHeight);
+      }
     }
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
     setIsResizing(false);
+    setResizeDirection(null);
   };
 
   useEffect(() => {
     if (isDragging || isResizing) {
+      // Prevent text selection during drag/resize
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = isDragging ? 'move' : (resizeDirection === 'se' ? 'se-resize' : 'sw-resize');
+
       globalThis.window.addEventListener('mousemove', handleMouseMove);
       globalThis.window.addEventListener('mouseup', handleMouseUp);
       return () => {
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
         globalThis.window.removeEventListener('mousemove', handleMouseMove);
         globalThis.window.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [isDragging, isResizing, dragStart, resizeStart]);
+  }, [isDragging, isResizing, dragStart, resizeStart, resizeDirection]);
 
   // Handle resize
-  const handleResizeMouseDown = (e: React.MouseEvent) => {
+  const handleResizeMouseDown = (e: React.MouseEvent, direction: 'se' | 'sw') => {
     e.stopPropagation();
     setIsResizing(true);
+    setResizeDirection(direction);
     setResizeStart({
       x: e.clientX,
       y: e.clientY,
       width: windowData.width,
-      height: windowData.height
+      height: windowData.height,
+      windowX: windowData.x
     });
     onBringToFront();
   };
@@ -107,7 +132,10 @@ const CanvasWindow: React.FC<CanvasWindowProps> = ({
     <div
       ref={windowRef}
       className="canvas-window bg-white rounded-lg shadow-2xl border border-gray-300 flex flex-col overflow-hidden"
-      style={style}
+      style={{
+        ...style,
+        userSelect: (isDragging || isResizing) ? 'none' : 'auto'
+      }}
       onMouseDown={() => onBringToFront()}
     >
       {/* Window Header */}
@@ -153,14 +181,25 @@ const CanvasWindow: React.FC<CanvasWindowProps> = ({
         {children}
       </div>
 
-      {/* Resize Handle */}
+      {/* Resize Handles */}
       {!windowData.isMaximized && (
-        <div
-          className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
-          onMouseDown={handleResizeMouseDown}
-        >
-          <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-gray-400"></div>
-        </div>
+        <>
+          {/* Bottom-right resize handle */}
+          <div
+            className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
+            onMouseDown={(e) => handleResizeMouseDown(e, 'se')}
+          >
+            <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-gray-400"></div>
+          </div>
+
+          {/* Bottom-left resize handle */}
+          <div
+            className="absolute bottom-0 left-0 w-4 h-4 cursor-sw-resize"
+            onMouseDown={(e) => handleResizeMouseDown(e, 'sw')}
+          >
+            <div className="absolute bottom-1 left-1 w-2 h-2 border-l-2 border-b-2 border-gray-400"></div>
+          </div>
+        </>
       )}
     </div>
   );
