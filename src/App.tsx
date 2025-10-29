@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Download, FileText, FileJson, File, Brain, Zap, Database, Info, Settings, MessageSquare, ChevronDown, Layout, Grid } from 'lucide-react';
+import { X, Download, FileText, FileJson, File, Brain, Zap, Database, Info, Settings, MessageSquare, ChevronDown, Layout, Grid, Home, Sparkles, ArrowRight } from 'lucide-react';
 import Header from './components/Header';
 import FileUpload from './components/FileUpload';
 import DocumentViewer from './components/DocumentViewer';
@@ -12,7 +12,7 @@ import { sendMessage } from './services/aiService';
 import { exportChatAsMarkdown, exportChatAsJSON, exportChatAsText } from './utils/exportHelpers';
 import { getSelectedSectionsContent } from './utils/sectionExtractor';
 
-type ViewMode = 'standard' | 'canvas';
+type ViewMode = 'landing' | 'standard' | 'canvas';
 
 function App() {
   const [document, setDocument] = useState<Document | null>(null);
@@ -26,7 +26,15 @@ function App() {
   const [showAPIGuide, setShowAPIGuide] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>('general'); // Default to general chat
   const [showChatModeSelector, setShowChatModeSelector] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('standard'); // Toggle between standard and canvas mode
+
+  // Always start on landing page
+  const [viewMode, setViewMode] = useState<ViewMode>('landing');
+
+  // Track preferred mode from localStorage for highlighting on landing page
+  const [preferredMode, setPreferredMode] = useState<'standard' | 'canvas'>(() => {
+    const saved = localStorage.getItem('hussai-view-mode');
+    return (saved === 'standard' || saved === 'canvas') ? saved : 'canvas';
+  });
 
   // Canvas state persistence
   const [canvasWindows, setCanvasWindows] = useState<any[]>([]);
@@ -57,6 +65,27 @@ function App() {
     return () => {
       window.removeEventListener('resize', checkScreenSize);
     };
+  }, []);
+
+  // Save preferred mode to localStorage when entering a mode (not landing)
+  useEffect(() => {
+    if (viewMode === 'standard' || viewMode === 'canvas') {
+      localStorage.setItem('hussai-view-mode', viewMode);
+      setPreferredMode(viewMode);
+    }
+  }, [viewMode]);
+
+  // Keyboard shortcut: Ctrl/Cmd + Shift + H to return to home (landing)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'H') {
+        e.preventDefault();
+        setViewMode('landing');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Handle panel resizing with refs to avoid re-renders
@@ -244,49 +273,140 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Header
-        selectedModel={selectedModel}
-        onModelChange={handleModelChange}
-        onShowAPIGuide={() => setShowAPIGuide(true)}
-      />
+      {/* Only show Header on landing page */}
+      {viewMode === 'landing' && (
+        <Header
+          selectedModel={selectedModel}
+          onModelChange={handleModelChange}
+          onShowAPIGuide={() => setShowAPIGuide(true)}
+        />
+      )}
 
-      {/* View Mode Toggle */}
-      <div className="max-w-[1920px] mx-auto px-6 pt-3">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
+      {/* Landing Page */}
+      {viewMode === 'landing' ? (
+        <div className="min-h-[calc(100vh-80px)] flex items-center justify-center px-6">
+          <div className="max-w-5xl w-full">
+            {/* Hero Section */}
+            <div className="text-center mb-12 animate-fadeIn">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-full mb-6">
+                <Sparkles className="h-4 w-4 text-purple-600" />
+                <span className="text-sm font-semibold text-gray-700">HussAI Dashboard v2.0</span>
+              </div>
+              <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Choose Your Workspace
+              </h1>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Select the perfect environment for your AI-powered document analysis and chat experience
+              </p>
+            </div>
+
+            {/* Mode Selection Cards */}
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
+              {/* Standard View Card */}
+              <button
+                onClick={() => setViewMode('standard')}
+                className={`group relative bg-white rounded-2xl p-8 border-2 transition-all duration-300 hover:shadow-2xl hover:scale-105 text-left ${
+                  preferredMode === 'standard'
+                    ? 'border-blue-500 shadow-xl ring-4 ring-blue-100'
+                    : 'border-gray-200 hover:border-blue-300'
+                }`}
+              >
+                {preferredMode === 'standard' && (
+                  <div className="absolute -top-3 -right-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
+                    Last Used ⭐
+                  </div>
+                )}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl">
+                    <Grid className="h-8 w-8 text-blue-600" />
+                  </div>
+                  <ArrowRight className="h-6 w-6 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-3">Standard View</h2>
+                <p className="text-gray-600 mb-4">
+                  Traditional two-column layout with document viewer on the left and AI chat on the right. Perfect for focused document analysis.
+                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                    <span>Single document focus</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                    <span>Section-based analysis</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600"></div>
+                    <span>Resizable panels</span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Canvas Mode Card */}
+              <button
+                onClick={() => setViewMode('canvas')}
+                className={`group relative bg-white rounded-2xl p-8 border-2 transition-all duration-300 hover:shadow-2xl hover:scale-105 text-left ${
+                  preferredMode === 'canvas'
+                    ? 'border-purple-500 shadow-xl ring-4 ring-purple-100'
+                    : 'border-gray-200 hover:border-purple-300'
+                }`}
+              >
+                {preferredMode === 'canvas' && (
+                  <div className="absolute -top-3 -right-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
+                    Last Used ⭐
+                  </div>
+                )}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl">
+                    <Layout className="h-8 w-8 text-purple-600" />
+                  </div>
+                  <ArrowRight className="h-6 w-6 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-3">Canvas Mode</h2>
+                <p className="text-gray-600 mb-4">
+                  Flexible multi-window workspace where you can create, arrange, and resize windows freely. Ideal for complex multi-document workflows.
+                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <div className="w-1.5 h-1.5 rounded-full bg-purple-600"></div>
+                    <span>Multiple windows & documents</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <div className="w-1.5 h-1.5 rounded-full bg-purple-600"></div>
+                    <span>Drag & resize anywhere</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <div className="w-1.5 h-1.5 rounded-full bg-purple-600"></div>
+                    <span>Custom workspace layouts</span>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* Footer Hint */}
+            <div className="text-center">
+              <div className="inline-flex items-center gap-2 text-sm text-gray-500 bg-gray-100 px-4 py-2 rounded-lg border border-gray-200">
+                <kbd className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-mono">⌘⇧H</kbd>
+                <span>to return home anytime</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Home Button - Floating Bottom Left (icon only) */}
+          <div className="fixed bottom-6 left-6 z-50">
             <button
-              onClick={() => setViewMode('standard')}
-              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                viewMode === 'standard'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
-              }`}
+              onClick={() => setViewMode('landing')}
+              className="group p-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-lg hover:shadow-xl hover:shadow-purple-500/30 transition-all duration-300 hover:scale-110"
+              title="Return to Home (⌘⇧H)"
             >
-              <Grid className="h-4 w-4" />
-              <span className="text-sm font-semibold">Standard View</span>
-            </button>
-            <button
-              onClick={() => setViewMode('canvas')}
-              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                viewMode === 'canvas'
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
-              }`}
-            >
-              <Layout className="h-4 w-4" />
-              <span className="text-sm font-semibold">Canvas Mode</span>
+              <Home className="h-5 w-5" />
             </button>
           </div>
-          {viewMode === 'canvas' && (
-            <div className="text-xs text-gray-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200">
-              💡 <span className="font-medium">Tip:</span> Create multiple windows to organize your workspace
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Canvas Mode */}
-      {viewMode === 'canvas' ? (
+          {/* Canvas Mode */}
+          {viewMode === 'canvas' ? (
         <CanvasBoard
           document={document}
           messages={messages}
@@ -584,6 +704,8 @@ function App() {
           </div>
         </div>
       </div>
+        </>
+      )}
         </>
       )}
 

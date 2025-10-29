@@ -24,7 +24,145 @@ const readFileAsArrayBuffer = async (file: File): Promise<ArrayBuffer> => {
   });
 };
 
+// Detect sections based on font size analysis
+const detectSectionsFromFontSizes = (
+  textItems: Array<{ text: string; fontSize: number; y: number; pageNum: number }>,
+  fullText: string
+): any[] => {
+  console.log('🔍 Analyzing font sizes for section detection...');
+
+  // Calculate font size statistics
+  const fontSizes = textItems.map(item => item.fontSize).filter(size => size > 0);
+  const avgFontSize = fontSizes.reduce((sum, size) => sum + size, 0) / fontSizes.length;
+  const sortedSizes = [...fontSizes].sort((a, b) => b - a);
+  const uniqueSizes = [...new Set(sortedSizes)];
+
+  console.log(`📊 Font size stats:`, {
+    average: avgFontSize.toFixed(2),
+    min: Math.min(...fontSizes).toFixed(2),
+    max: Math.max(...fontSizes).toFixed(2),
+    uniqueSizes: uniqueSizes.slice(0, 5).map(s => s.toFixed(2))
+  });
+
+  // Threshold: text is a heading if font size is significantly larger than average
+  const headingThreshold = avgFontSize * 1.15; // 15% larger than average
+  console.log(`🎯 Heading threshold: ${headingThreshold.toFixed(2)}`);
+
+  // Group text items into lines (items with similar Y position)
+  const lines: Array<{ text: string; fontSize: number; pageNum: number; y: number; isHeading: boolean }> = [];
+  let currentLine: { texts: string[]; fontSize: number; pageNum: number; y: number } = {
+    texts: [],
+    fontSize: 0,
+    pageNum: 1,
+    y: 0
+  };
+
+  for (const item of textItems) {
+    // If Y position changed significantly or page changed, start a new line
+    if (currentLine.texts.length > 0 &&
+        (Math.abs(item.y - currentLine.y) > 5 || item.pageNum !== currentLine.pageNum)) {
+      // Save current line
+      const lineText = currentLine.texts.join(' ').trim();
+      if (lineText.length > 0) {
+        lines.push({
+          text: lineText,
+          fontSize: currentLine.fontSize,
+          pageNum: currentLine.pageNum,
+          y: currentLine.y,
+          isHeading: currentLine.fontSize >= headingThreshold
+        });
+      }
+
+      // Start new line
+      currentLine = { texts: [item.text], fontSize: item.fontSize, pageNum: item.pageNum, y: item.y };
+    } else {
+      // Add to current line
+      currentLine.texts.push(item.text);
+      currentLine.fontSize = Math.max(currentLine.fontSize, item.fontSize); // Use largest font on line
+      currentLine.pageNum = item.pageNum;
+      currentLine.y = item.y;
+    }
+  }
+
+  // Save last line
+  if (currentLine.texts.length > 0) {
+    const lineText = currentLine.texts.join(' ').trim();
+    if (lineText.length > 0) {
+      lines.push({
+        text: lineText,
+        fontSize: currentLine.fontSize,
+        pageNum: currentLine.pageNum,
+        y: currentLine.y,
+        isHeading: currentLine.fontSize >= headingThreshold
+      });
+    }
+  }
+
+  console.log(`📝 Total lines: ${lines.length}, Potential headings: ${lines.filter(l => l.isHeading).length}`);
+
+  // Build sections from headings
+  const sections: any[] = [];
+  let currentSection: { title: string; content: string[]; pageNum: number } | null = null;
+  let sectionId = 0;
+
+  for (const line of lines) {
+    if (line.isHeading && line.text.length >= 10 && line.text.length <= 100) {
+      // This looks like a heading - start new section
+      if (currentSection && currentSection.content.length > 0) {
+        // Save previous section
+        sections.push({
+          id: `section-${++sectionId}`,
+          title: currentSection.title,
+          level: 1,
+          content: currentSection.content.join('\n').trim(),
+          pageNumber: currentSection.pageNum,
+          selected: true
+        });
+      }
+
+      // Start new section
+      currentSection = {
+        title: line.text,
+        content: [],
+        pageNum: line.pageNum
+      };
+
+      console.log(`📌 Found heading: "${line.text}" (page ${line.pageNum}, fontSize: ${line.fontSize.toFixed(2)})`);
+    } else if (currentSection) {
+      // Add to current section content
+      currentSection.content.push(line.text);
+    }
+  }
+
+  // Save last section
+  if (currentSection && currentSection.content.length > 0) {
+    sections.push({
+      id: `section-${++sectionId}`,
+      title: currentSection.title,
+      level: 1,
+      content: currentSection.content.join('\n').trim(),
+      pageNumber: currentSection.pageNum,
+      selected: true
+    });
+  }
+
+  console.log(`✅ Created ${sections.length} sections with content`);
+  sections.forEach((section, idx) => {
+    const wordCount = section.content.split(/\s+/).length;
+    console.log(`   ${idx + 1}. "${section.title}" - ${wordCount} words (page ${section.pageNumber})`);
+  });
+
+  return sections;
+};
+
+// Extended processPDF that returns both text and structured section data
 export const processPDF = async (file: File): Promise<string> => {
+  const result = await processPDFWithSections(file);
+  return result.content;
+};
+
+// New function that extracts PDF with font-based section detection
+export const processPDFWithSections = async (file: File): Promise<{ content: string; sections?: any[] }> => {
   console.log('Processing PDF:', file.name, 'Size:', file.size, 'Type:', file.type);
 
   try {
@@ -64,16 +202,19 @@ export const processPDF = async (file: File): Promise<string> => {
     console.log('PDF loaded successfully. Pages:', pdf.numPages);
 
     let fullText = '';
+    const textItems: Array<{ text: string; fontSize: number; y: number; pageNum: number }> = [];
 
-    // Extract text from each page (limit to first 10 pages for performance)
-    const maxPages = Math.min(pdf.numPages, 10);
+    // Extract text from ALL pages with font size information
+    const maxPages = pdf.numPages;
+    console.log(`📄 Processing all ${maxPages} pages for font-based section detection...`);
+
     for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
       try {
         console.log(`Processing page ${pageNum}/${maxPages}...`);
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
 
-        // Properly extract text with line breaks preserved
+        // Properly extract text with line breaks preserved AND capture font sizes
         let pageText = '';
         let lastY = -1;
 
@@ -81,9 +222,19 @@ export const processPDF = async (file: File): Promise<string> => {
           const text = (item as any).str;
           if (!text) continue;
 
-          // Get the y-position (vertical position on page)
+          // Get the transform matrix: [a, b, c, d, e, f]
+          // Font size is typically stored in the 'd' value (index 3) or calculated from height
           const transform = (item as any).transform;
           const currentY = transform ? transform[5] : -1;
+          const fontSize = transform ? Math.abs(transform[3]) : 12; // Default to 12 if not available
+
+          // Store text item with metadata
+          textItems.push({
+            text: text.trim(),
+            fontSize: fontSize,
+            y: currentY,
+            pageNum: pageNum
+          });
 
           // If y-position changed significantly, we're on a new line
           if (lastY !== -1 && Math.abs(currentY - lastY) > 5) {
@@ -105,19 +256,24 @@ export const processPDF = async (file: File): Promise<string> => {
       }
     }
 
-    if (pdf.numPages > 10) {
-      fullText += `\n[Note: Document has ${pdf.numPages} pages, showing first 10 pages only]`;
-    }
-
     console.log('Full extracted text length:', fullText.trim().length);
+    console.log('Total text items captured:', textItems.length);
 
     if (!fullText.trim()) {
       throw new Error('No text content found in PDF - might be image-based or encrypted');
     }
 
+    // Analyze font sizes to detect headings
+    const sections = detectSectionsFromFontSizes(textItems, fullText);
+    console.log(`🎯 Detected ${sections.length} sections based on font sizes`);
+
     const cleanedText = cleanText(fullText);
     console.log('Cleaned text length:', cleanedText.length);
-    return cleanedText;
+
+    return {
+      content: cleanedText,
+      sections: sections
+    };
   } catch (error) {
     console.error('PDF processing error details:', error);
 

@@ -155,7 +155,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
   return (
     <div className="w-full">
       <div
-        className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+        className={`relative border border-dashed rounded p-2 transition-colors ${
           dragActive
             ? 'border-blue-400 bg-blue-50'
             : 'border-gray-300 hover:border-gray-400'
@@ -174,40 +174,37 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDocumentUpload }) => {
         />
 
         {uploading ? (
-          <div className="flex flex-col items-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-2 text-sm text-gray-600">Processing file...</p>
+          <div className="flex items-center justify-center gap-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            <p className="text-xs text-gray-600">Processing...</p>
           </div>
         ) : (
-          <div className="flex flex-col items-center">
-            <Upload className="h-8 w-8 text-gray-400 mb-2" />
-            <p className="text-sm text-gray-600 mb-2">
-              Drag and drop your document here, or{' '}
+          <div className="flex items-center justify-center gap-2">
+            <Upload className="h-4 w-4 text-gray-400" />
+            <p className="text-xs text-gray-600">
+              Drop or{' '}
               <button
                 onClick={onButtonClick}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-blue-600 hover:text-blue-700 font-medium underline"
               >
                 browse
               </button>
-            </p>
-            <p className="text-xs text-gray-500">
-              Supports PDF, Word, Excel, CSV, JSON, TXT, and Images (PNG, JPG) up to 50MB
             </p>
           </div>
         )}
       </div>
 
       {error && (
-        <div className="mt-3 flex items-center text-red-600 text-sm">
-          <AlertCircle className="h-4 w-4 mr-2" />
+        <div className="mt-1 flex items-center text-red-600 text-xs">
+          <AlertCircle className="h-3 w-3 mr-1" />
           {error}
         </div>
       )}
 
       {success && (
-        <div className="mt-3 flex items-center text-green-600 text-sm">
-          <CheckCircle className="h-4 w-4 mr-2" />
-          File uploaded successfully!
+        <div className="mt-1 flex items-center text-green-600 text-xs">
+          <CheckCircle className="h-3 w-3 mr-1" />
+          Uploaded!
         </div>
       )}
     </div>

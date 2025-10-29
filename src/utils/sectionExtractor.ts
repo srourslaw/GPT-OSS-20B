@@ -15,15 +15,56 @@ const fillSectionContent = (sections: DocumentSection[], fullText: string): void
     // Search for the section title (case-insensitive, allow some flexibility)
     const searchTitle = section.title.toLowerCase().trim();
 
+    // Try multiple matching strategies
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].toLowerCase().trim();
 
-      // Check if this line contains the section title
-      if (line.includes(searchTitle) || searchTitle.includes(line)) {
-        // Make sure it's a substantial match (not just 1-2 words)
-        const matchRatio = Math.min(line.length, searchTitle.length) / Math.max(line.length, searchTitle.length);
-        if (matchRatio > 0.5 && line.length > 5) {
-          sectionStartIndex = i + 1; // Start from next line
+      // Strategy 1: Exact match
+      if (line === searchTitle) {
+        sectionStartIndex = i + 1;
+        break;
+      }
+
+      // Strategy 2: Line contains the full search title
+      if (line.includes(searchTitle) && searchTitle.length > 5) {
+        sectionStartIndex = i + 1;
+        break;
+      }
+
+      // Strategy 3: Search title contains the line (for short lines)
+      if (searchTitle.includes(line) && line.length > 5) {
+        const matchRatio = line.length / searchTitle.length;
+        if (matchRatio > 0.5) {
+          sectionStartIndex = i + 1;
+          break;
+        }
+      }
+
+      // Strategy 4: Fuzzy match - check if significant words match
+      if (searchTitle.length > 10 && line.length > 10) {
+        const searchWords = searchTitle.split(/\s+/).filter(w => w.length > 3);
+        const lineWords = line.split(/\s+/).filter(w => w.length > 3);
+        const matchingWords = searchWords.filter(sw => lineWords.some(lw => lw.includes(sw) || sw.includes(lw)));
+
+        // If more than 60% of significant words match
+        if (matchingWords.length >= searchWords.length * 0.6 && searchWords.length >= 2) {
+          sectionStartIndex = i + 1;
+          break;
+        }
+      }
+
+      // Strategy 5: All-words match (even for short titles) - most aggressive
+      const searchWords = searchTitle.split(/\s+/).filter(w => w.length > 2);
+      const lineWords = line.split(/\s+/).filter(w => w.length > 2);
+
+      if (searchWords.length >= 2) {
+        // Check if all search words are present in the line
+        const allWordsMatch = searchWords.every(sw =>
+          lineWords.some(lw => lw === sw || lw.includes(sw) || sw.includes(lw))
+        );
+
+        if (allWordsMatch && line.length < 100) { // Avoid matching long paragraphs
+          sectionStartIndex = i + 1;
           break;
         }
       }
@@ -31,9 +72,13 @@ const fillSectionContent = (sections: DocumentSection[], fullText: string): void
 
     if (sectionStartIndex === -1) {
       console.log(`⚠️ Could not find content for section: "${section.title}"`);
+      console.log(`   Searched for: "${searchTitle}"`);
+      console.log(`   First 5 lines to check:`, lines.slice(0, 5).map(l => `"${l}"`));
       section.content = `[Content for "${section.title}" could not be extracted]`;
       continue;
     }
+
+    console.log(`✅ Found section "${section.title}" starting at line ${sectionStartIndex}`);
 
     // Find where this section ends (either at the next section title or end of document)
     // Look for the next section in the list
@@ -44,12 +89,58 @@ const fillSectionContent = (sections: DocumentSection[], fullText: string): void
 
       for (let i = sectionStartIndex; i < lines.length; i++) {
         const line = lines[i].toLowerCase().trim();
-        if (line.includes(nextSearchTitle) || nextSearchTitle.includes(line)) {
-          const matchRatio = Math.min(line.length, nextSearchTitle.length) / Math.max(line.length, nextSearchTitle.length);
-          if (matchRatio > 0.5 && line.length > 5) {
-            sectionEndIndex = i;
-            break;
+
+        // Use same multi-strategy matching for finding section end
+        let isMatch = false;
+
+        // Strategy 1: Exact match
+        if (line === nextSearchTitle) {
+          isMatch = true;
+        }
+
+        // Strategy 2: Line contains the full search title
+        if (!isMatch && line.includes(nextSearchTitle) && nextSearchTitle.length > 5) {
+          isMatch = true;
+        }
+
+        // Strategy 3: Search title contains the line
+        if (!isMatch && nextSearchTitle.includes(line) && line.length > 5) {
+          const matchRatio = line.length / nextSearchTitle.length;
+          if (matchRatio > 0.5) {
+            isMatch = true;
           }
+        }
+
+        // Strategy 4: Fuzzy match
+        if (!isMatch && nextSearchTitle.length > 10 && line.length > 10) {
+          const searchWords = nextSearchTitle.split(/\s+/).filter(w => w.length > 3);
+          const lineWords = line.split(/\s+/).filter(w => w.length > 3);
+          const matchingWords = searchWords.filter(sw => lineWords.some(lw => lw.includes(sw) || sw.includes(lw)));
+
+          if (matchingWords.length >= searchWords.length * 0.6 && searchWords.length >= 2) {
+            isMatch = true;
+          }
+        }
+
+        // Strategy 5: All-words match - most aggressive
+        if (!isMatch) {
+          const searchWords = nextSearchTitle.split(/\s+/).filter(w => w.length > 2);
+          const lineWords = line.split(/\s+/).filter(w => w.length > 2);
+
+          if (searchWords.length >= 2) {
+            const allWordsMatch = searchWords.every(sw =>
+              lineWords.some(lw => lw === sw || lw.includes(sw) || sw.includes(lw))
+            );
+
+            if (allWordsMatch && line.length < 100) {
+              isMatch = true;
+            }
+          }
+        }
+
+        if (isMatch) {
+          sectionEndIndex = i;
+          break;
         }
       }
     }
@@ -141,7 +232,20 @@ const extractSectionsFromTOC = (text: string): DocumentSection[] | null => {
 
     if (!line || line.length < 3) continue;
 
-    // TOC entry patterns:
+    // Skip lines that are clearly not TOC entries
+    // Skip lines that end with common prepositions or articles (likely sentence fragments)
+    const lowerLine = line.toLowerCase();
+    const fragmentEndings = ['our', 'for', 'the', 'and', 'with', 'that', 'this', 'are', 'has', 'have', 'its', 'from', 'into', 'upon', 'about', 'after', 'before', 'under', 'over'];
+    const endsWithFragment = fragmentEndings.some(ending => {
+      const pattern = new RegExp(`\\s${ending}$`, 'i');
+      return pattern.test(lowerLine);
+    });
+    if (endsWithFragment) continue;
+
+    // Skip lines that don't start with a capital letter or number
+    if (!/^[A-Z0-9•]/.test(line)) continue;
+
+    // TOC entry patterns - REQUIRE page number for valid TOC entry
     // 1. "Section Name ..... 5"
     // 2. "Section Name     5"
     // 3. "1.2 Section Name .... 5"
@@ -153,14 +257,17 @@ const extractSectionsFromTOC = (text: string): DocumentSection[] | null => {
     let level = 1;
 
     // Remove page number from end (digits possibly preceded by dots/spaces)
-    const pageMatch = line.match(/^(.+?)[\s\.]+(\d+)\s*$/);
-    if (pageMatch) {
-      title = pageMatch[1].trim();
-      pageNum = parseInt(pageMatch[2]);
-    } else {
-      // No page number found, just use the line as title
-      title = line;
+    const pageMatch = line.match(/^(.+?)[\s\.]{2,}(\d+)\s*$/);
+    if (!pageMatch) {
+      // No proper TOC pattern found, skip this line
+      continue;
     }
+
+    title = pageMatch[1].trim();
+    pageNum = parseInt(pageMatch[2]);
+
+    // Validate page number is reasonable (1-1000)
+    if (pageNum < 1 || pageNum > 1000) continue;
 
     // Remove leading dots
     title = title.replace(/^\.+/, '').trim();
@@ -173,14 +280,24 @@ const extractSectionsFromTOC = (text: string): DocumentSection[] | null => {
 
     // Remove numbering from title (1.2, 1.2.3, etc.)
     title = title.replace(/^\d+(\.\d+)*\.?\s+/, '').trim();
+    // Remove bullet points
+    title = title.replace(/^[•\-]\s+/, '').trim();
 
     // Skip if title is too short or looks invalid
     if (title.length < 3 || !/[A-Za-z]/.test(title)) continue;
+
+    // Skip if title is too long (likely a sentence, not a section title)
+    if (title.length > 80) continue;
 
     // Skip common TOC header repeats
     if (title.toLowerCase() === 'table of contents' ||
         title.toLowerCase() === 'contents' ||
         title.toLowerCase() === 'page') continue;
+
+    // Additional validation: section titles shouldn't end with prepositions or articles
+    const titleWords = title.split(/\s+/);
+    const lastWord = titleWords[titleWords.length - 1]?.toLowerCase();
+    if (fragmentEndings.includes(lastWord)) continue;
 
     sections.push({
       id: `section-${++sectionId}`,

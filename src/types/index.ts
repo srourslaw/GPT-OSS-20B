@@ -76,7 +76,7 @@ export interface ChatModeOption {
 }
 
 // Canvas Types
-export type WindowType = 'chat' | 'document' | 'notes' | 'web' | 'draft';
+export type WindowType = 'chat' | 'document' | 'notes' | 'web' | 'draft' | 'library';
 
 export interface CanvasWindow {
   id: string;
@@ -95,4 +95,16 @@ export interface CanvasWindow {
 export interface CanvasLayout {
   windows: CanvasWindow[];
   nextZIndex: number;
+}
+
+// Document Library Types
+export interface LibraryDocument {
+  id: string;
+  document: Document;
+  isExpanded: boolean;
+  selectedSectionIds: string[]; // IDs of selected sections
+}
+
+export interface DocumentLibrary {
+  documents: LibraryDocument[];
 }

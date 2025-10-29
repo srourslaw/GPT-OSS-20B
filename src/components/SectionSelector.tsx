@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronDown, CheckSquare, Square } from 'lucide-react';
+import { ChevronRight, ChevronDown, CheckSquare, Square, ChevronsDown, ChevronsRight, X } from 'lucide-react';
 import { DocumentSection } from '../types';
 
 interface SectionSelectorProps {
   sections: DocumentSection[];
   onSectionsChange: (sections: DocumentSection[]) => void;
+  onSectionClick?: (sectionId: string) => void;
 }
 
-const SectionSelector: React.FC<SectionSelectorProps> = ({ sections, onSectionsChange }) => {
+const SectionSelector: React.FC<SectionSelectorProps> = ({ sections, onSectionsChange, onSectionClick }) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const toggleExpand = (sectionId: string) => {
@@ -69,6 +70,32 @@ const SectionSelector: React.FC<SectionSelectorProps> = ({ sections, onSectionsC
     onSectionsChange(updateAll(sections));
   };
 
+  // Collect all section IDs recursively
+  const collectAllSectionIds = (secs: DocumentSection[]): string[] => {
+    const ids: string[] = [];
+    const collect = (sections: DocumentSection[]) => {
+      sections.forEach(section => {
+        ids.push(section.id);
+        if (section.children) {
+          collect(section.children);
+        }
+      });
+    };
+    collect(secs);
+    return ids;
+  };
+
+  const expandAll = () => {
+    const allIds = collectAllSectionIds(sections);
+    setExpandedSections(new Set(allIds));
+  };
+
+  const collapseAll = () => {
+    setExpandedSections(new Set());
+  };
+
+  const allExpanded = sections.length > 0 && expandedSections.size > 0 && expandedSections.size === collectAllSectionIds(sections).length;
+
   const renderSection = (section: DocumentSection, level: number = 0) => {
     const hasChildren = section.children && section.children.length > 0;
     const isExpanded = expandedSections.has(section.id);
@@ -113,7 +140,16 @@ const SectionSelector: React.FC<SectionSelectorProps> = ({ sections, onSectionsC
 
           {/* Section title */}
           <div
-            onClick={() => handleToggle(section.id)}
+            onClick={() => {
+              console.log('🖱️ Section clicked:', section.id, section.title);
+              handleToggle(section.id);
+              if (onSectionClick) {
+                console.log('🔔 Calling onSectionClick callback');
+                onSectionClick(section.id);
+              } else {
+                console.log('⚠️ onSectionClick callback not provided');
+              }
+            }}
             className="flex-1 min-w-0"
           >
             <p className={`text-sm truncate ${
@@ -145,21 +181,52 @@ const SectionSelector: React.FC<SectionSelectorProps> = ({ sections, onSectionsC
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header with select all/none buttons */}
-      <div className="flex items-center justify-between px-2 py-2 border-b border-gray-200 bg-gray-50">
-        <span className="text-xs font-semibold text-gray-700">Sections</span>
-        <div className="flex gap-1">
+      {/* Header with controls */}
+      <div className="px-2 py-2 border-b border-gray-200 bg-gray-50 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-gray-700">Sections</span>
+          <div className="flex gap-1">
+            <button
+              onClick={selectAll}
+              className="text-xs px-2 py-1 text-blue-600 hover:bg-blue-50 rounded transition-colors font-medium"
+              title="Select all sections"
+            >
+              All
+            </button>
+            <button
+              onClick={deselectAll}
+              className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors font-medium"
+              title="Deselect all sections"
+            >
+              None
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-1">
           <button
-            onClick={selectAll}
-            className="text-xs px-2 py-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            onClick={allExpanded ? collapseAll : expandAll}
+            className="text-xs px-2 py-1 text-purple-600 hover:bg-purple-50 rounded transition-colors flex items-center gap-1 font-medium border border-purple-200"
+            title={allExpanded ? "Collapse all sections" : "Expand all sections"}
           >
-            All
+            {allExpanded ? (
+              <>
+                <ChevronsRight className="h-3 w-3" />
+                Collapse All
+              </>
+            ) : (
+              <>
+                <ChevronsDown className="h-3 w-3" />
+                Expand All
+              </>
+            )}
           </button>
           <button
             onClick={deselectAll}
-            className="text-xs px-2 py-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
+            className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded transition-colors flex items-center gap-1 font-medium border border-red-200"
+            title="Clear all section selections"
           >
-            None
+            <X className="h-3 w-3" />
+            Clear All
           </button>
         </div>
       </div>

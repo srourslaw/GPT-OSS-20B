@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Plus, MessageSquare, FileText, StickyNote, Globe, Layout, Edit3, Search, ExternalLink, RefreshCw, Home, ArrowLeft, ArrowRight, X } from 'lucide-react';
+import { Plus, MessageSquare, FileText, StickyNote, Globe, Layout, Edit3, Search, ExternalLink, RefreshCw, Home, ArrowLeft, ArrowRight, X, Library } from 'lucide-react';
 import CanvasWindowComponent from './CanvasWindow';
 import ChatInterface from './ChatInterface';
 import DocumentViewer from './DocumentViewer';
 import FileUpload from './FileUpload';
 import DraftEditor from './DraftEditor';
+import DocumentLibrary from './DocumentLibrary';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github.css';
-import { CanvasWindow, WindowType, Document, ChatMessage, AIModel } from '../types';
+import { CanvasWindow, WindowType, Document, ChatMessage, AIModel, LibraryDocument } from '../types';
 import { sendMessage } from '../services/aiService';
 import { getSelectedSectionsContent } from '../utils/sectionExtractor';
 import { exportToPDF, exportToWord, exportToHTML } from '../utils/exportUtils';
@@ -70,6 +71,9 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
   const [webUrls, setWebUrls] = useState<{ [windowId: string]: string }>({});
   const [webHistory, setWebHistory] = useState<{ [windowId: string]: string[] }>({});
   const [webHistoryIndex, setWebHistoryIndex] = useState<{ [windowId: string]: number }>({});
+
+  // Library state - each library window has its own collection of documents
+  const [libraryDocuments, setLibraryDocuments] = useState<{ [windowId: string]: LibraryDocument[] }>({});
 
   // Sync local state with parent
   React.useEffect(() => {
@@ -231,22 +235,39 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
     const shouldWriteToDraft = draftWindows.length > 0 && draftKeywords.some(keyword => message.toLowerCase().includes(keyword));
 
     try {
+      // Check if Document Library has selections first - if yes, prioritize library content ONLY
+      const libraryWindows = windows.filter(w => w.type === 'library');
+      let hasLibrarySelections = false;
+
+      if (libraryWindows.length > 0) {
+        hasLibrarySelections = libraryWindows.some(libWin => {
+          const docs = libraryDocuments[libWin.id] || [];
+          return docs.some(libDoc => libDoc.selectedSectionIds.length > 0);
+        });
+      }
+
+      console.log('📚 Has library selections:', hasLibrarySelections);
+
       // Build context from document and notes
       let documentContext = '';
 
-      if (canvasDocument) {
+      // ONLY add canvasDocument (References window) if there are NO library selections
+      // This ensures when you select sections in Document Library, the AI ONLY sees those sections
+      if (!hasLibrarySelections && canvasDocument) {
         // Use selected sections if in section mode, otherwise use full content
         if (canvasDocument.sectionMode === 'selected' && canvasDocument.sections && canvasDocument.sections.length > 0) {
           const selectedContent = getSelectedSectionsContent(canvasDocument.sections);
-          console.log('🔍 CANVAS: SELECTED CONTENT LENGTH:', selectedContent.length, 'characters');
-          console.log('🔍 CANVAS: SELECTED CONTENT PREVIEW:', selectedContent.substring(0, 500));
+          console.log('🔍 REFERENCES WINDOW: SELECTED CONTENT LENGTH:', selectedContent.length, 'characters');
+          console.log('🔍 REFERENCES WINDOW: SELECTED CONTENT PREVIEW:', selectedContent.substring(0, 500));
 
           // Use selected content even if empty - this ensures AI only sees what's selected
-          documentContext += `\n\nDocument Content (Selected Sections):\n${selectedContent || '[No content available for selected sections]'}`;
+          documentContext += `\n\n=== REFERENCES WINDOW (Selected Sections) ===\n${selectedContent || '[No content available for selected sections]'}`;
         } else {
-          documentContext += `\n\nDocument Content:\n${canvasDocument.content}`;
-          console.log('🔍 CANVAS: USING FULL DOCUMENT:', canvasDocument.content.length, 'characters');
+          documentContext += `\n\n=== REFERENCES WINDOW (Full Document) ===\n${canvasDocument.content}`;
+          console.log('🔍 REFERENCES WINDOW: USING FULL DOCUMENT:', canvasDocument.content.length, 'characters');
         }
+      } else if (hasLibrarySelections) {
+        console.log('🔍 ✅ SKIPPING References window because Document Library has selections - AI will ONLY see library selections');
       }
 
       if (canvasNotes && canvasNotes.trim()) {
@@ -276,6 +297,99 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
           documentContext += `\n\n=== WEB BROWSER CONTEXT ===\nYou can see the following web page(s) that the user is currently viewing:\n${openUrls.join('\n')}\n\nCRITICAL INSTRUCTIONS:\n- When the user says "check my web search", "what am I looking at", "explain this page", "tell me about this topic", or similar phrases, they are asking about the URL(s) listed above\n- You MUST use the page title from the URL to identify the topic\n- For Wikipedia URLs like "/wiki/Quantum_entanglement", the topic is "Quantum entanglement" - provide a detailed explanation of this topic\n- DO NOT say "I can't see the URL" or "I need more details" - the URL is provided above\n- If the user asks about "this page" or "this topic", immediately explain the subject shown in the URL\n- Extract the topic from the URL path and provide comprehensive information about it\n=== END WEB CONTEXT ===`;
 
           console.log('🌐 Web Search Context Added:', openUrls);
+        }
+      }
+
+      // Add Document Library context - combine selected sections from all library windows
+      if (libraryWindows.length > 0) {
+        let libraryContext = '\n\n=== DOCUMENT LIBRARY CONTEXT ===\n';
+        libraryContext += '🚨 ABSOLUTE CRITICAL CONSTRAINT 🚨\n';
+        libraryContext += 'The user has SPECIFICALLY and DELIBERATELY selected ONLY certain sections from their documents.\n';
+        libraryContext += 'These sections are displayed in the "Selected Preview" panel.\n';
+        libraryContext += 'YOU MUST ANSWER EXCLUSIVELY BASED ON THE SELECTED SECTIONS PROVIDED BELOW.\n';
+        libraryContext += 'DO NOT INFER, ASSUME, OR REFERENCE ANY CONTENT OUTSIDE THESE EXACT SELECTED SECTIONS.\n';
+        libraryContext += 'TREAT THE SELECTED SECTIONS AS THE ENTIRE UNIVERSE OF AVAILABLE INFORMATION.\n';
+        libraryContext += 'If a section like "Thakral One Value Proposition" is selected, ONLY that section\'s content exists for you.\n';
+        libraryContext += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+        let totalSelectedSections = 0;
+        let documentsWithSelections = 0;
+        const documentNames: string[] = [];
+
+        console.log(`📚 Found ${libraryWindows.length} library window(s)`);
+
+        libraryWindows.forEach(libraryWindow => {
+          const docs = libraryDocuments[libraryWindow.id] || [];
+          console.log(`📚 Library window ${libraryWindow.id} has ${docs.length} document(s)`);
+
+          docs.forEach((libDoc, docIndex) => {
+            console.log(`📚 Document ${docIndex + 1}: ${libDoc.document.name}, Selected sections: ${libDoc.selectedSectionIds.length}`);
+
+            if (libDoc.selectedSectionIds.length > 0) {
+              documentsWithSelections++;
+              documentNames.push(libDoc.document.name);
+              libraryContext += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+              libraryContext += `📄 DOCUMENT ${documentsWithSelections} of ${docs.filter(d => d.selectedSectionIds.length > 0).length}\n`;
+              libraryContext += `Title: ${libDoc.document.name}\n`;
+              libraryContext += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+              // Helper function to collect selected sections
+              const collectSelectedSections = (sections: any[], selectedIds: string[], depth: number = 0): void => {
+                sections.forEach(section => {
+                  if (selectedIds.includes(section.id)) {
+                    totalSelectedSections++;
+                    const indent = '  '.repeat(depth);
+                    libraryContext += `${indent}┌─────────────────────────────────────────┐\n`;
+                    libraryContext += `${indent}│ SELECTED SECTION #${totalSelectedSections}: ${section.title}\n`;
+                    libraryContext += `${indent}└─────────────────────────────────────────┘\n`;
+                    libraryContext += `${indent}${section.content}\n`;
+                    libraryContext += `${indent}[END OF SECTION: ${section.title}]\n\n`;
+                    console.log(`📚   ✓ Added section: ${section.title} (${section.content.length} chars)`);
+                  }
+                  if (section.children && section.children.length > 0) {
+                    collectSelectedSections(section.children, selectedIds, depth + 1);
+                  }
+                });
+              };
+
+              if (libDoc.document.sections) {
+                console.log(`📚 Processing ${libDoc.document.sections.length} top-level sections`);
+                collectSelectedSections(libDoc.document.sections, libDoc.selectedSectionIds);
+              } else {
+                console.log(`📚 WARNING: Document has no sections!`);
+                // If no sections, use full document content
+                libraryContext += `${libDoc.document.content}\n\n`;
+                totalSelectedSections++;
+              }
+            }
+          });
+        });
+
+        if (totalSelectedSections > 0) {
+          // Add a clear summary at the end
+          libraryContext += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+          libraryContext += `📊 END OF SELECTED SECTIONS\n`;
+          libraryContext += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+          libraryContext += `\n🚨 FINAL REMINDER - READ CAREFULLY 🚨\n`;
+          libraryContext += `You have been provided with EXACTLY ${totalSelectedSections} SELECTED section(s) from ${documentsWithSelections} document(s):\n`;
+          documentNames.forEach((name, idx) => {
+            libraryContext += `   ${idx + 1}. ${name}\n`;
+          });
+          libraryContext += `\n🔒 ABSOLUTE CONSTRAINTS:\n`;
+          libraryContext += `1. The sections above are shown in "Selected Preview" - this is ALL the information you have access to.\n`;
+          libraryContext += `2. Answer EXCLUSIVELY based on the content provided in these selected sections.\n`;
+          libraryContext += `3. DO NOT infer, assume, or reference ANY content from other parts of the documents.\n`;
+          libraryContext += `4. DO NOT use external knowledge about the document topics - ONLY use what's explicitly written above.\n`;
+          libraryContext += `5. If the user asks about something NOT in the selected sections, respond with: "The selected sections don't contain information about this. Please select additional sections if needed."\n`;
+          libraryContext += `6. When quoting or referencing, ONLY cite from the sections provided above.\n`;
+          libraryContext += `\n💡 THINK OF IT THIS WAY: Pretend the selected sections above are the ONLY text in the entire universe.\n`;
+          libraryContext += `=== END LIBRARY CONTEXT ===\n`;
+
+          documentContext += libraryContext;
+          console.log(`📚 ✅ Library Context Added: ${totalSelectedSections} sections from ${documentsWithSelections} documents`);
+          console.log(`📚 Document names:`, documentNames);
+          console.log(`📚 Library context length: ${libraryContext.length} characters`);
+        } else {
+          console.log(`📚 ⚠️ No sections selected in library`);
         }
       }
 
@@ -320,7 +434,11 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
 
       // Call AI service with enhanced context
       // Use 'document' mode when we have context, otherwise 'general'
-      const chatMode = (canvasDocument || canvasNotes || activeWebWindows.length > 0) ? 'document' : 'general';
+      const hasLibraryContext = libraryWindows.some(libWin => {
+        const docs = libraryDocuments[libWin.id] || [];
+        return docs.some(libDoc => libDoc.selectedSectionIds.length > 0);
+      });
+      const chatMode = (canvasDocument || canvasNotes || activeWebWindows.length > 0 || hasLibraryContext) ? 'document' : 'general';
 
       const aiResponse = await sendMessage(
         enhancedMessage,
@@ -499,16 +617,32 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
     switch (window.type) {
       case 'chat':
         const openWebPages = windows.filter(w => w.type === 'web' && webUrls[w.id]);
+
+        // Calculate library context stats
+        const libraryWins = windows.filter(w => w.type === 'library');
+        let totalLibrarySections = 0;
+        let totalLibraryDocs = 0;
+        libraryWins.forEach(libWin => {
+          const docs = libraryDocuments[libWin.id] || [];
+          docs.forEach(libDoc => {
+            if (libDoc.selectedSectionIds.length > 0) {
+              totalLibraryDocs++;
+              totalLibrarySections += libDoc.selectedSectionIds.length;
+            }
+          });
+        });
+
         return (
           <div className="h-full flex flex-col">
             {/* Context indicator */}
-            {(canvasDocument || canvasNotes || openWebPages.length > 0) && (
+            {(canvasDocument || canvasNotes || openWebPages.length > 0 || totalLibrarySections > 0) && (
               <div className="mx-4 mt-4 mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs text-blue-800 font-medium">
                   📎 AI has access to:
-                  {canvasDocument && <span className="ml-2">📄 Document</span>}
+                  {canvasDocument && <span className="ml-2">📄 References</span>}
                   {canvasNotes && <span className="ml-2">📝 Notes</span>}
                   {openWebPages.length > 0 && <span className="ml-2">🌐 {openWebPages.length} Web Page{openWebPages.length > 1 ? 's' : ''}</span>}
+                  {totalLibrarySections > 0 && <span className="ml-2">📚 {totalLibrarySections} section{totalLibrarySections !== 1 ? 's' : ''} from {totalLibraryDocs} doc{totalLibraryDocs !== 1 ? 's' : ''}</span>}
                 </p>
               </div>
             )}
@@ -957,6 +1091,19 @@ ${isFormattingAction
             </div>
           </div>
         );
+      case 'library':
+        const currentLibraryDocs = libraryDocuments[window.id] || [];
+        return (
+          <DocumentLibrary
+            documents={currentLibraryDocs}
+            onDocumentsChange={(docs) => {
+              setLibraryDocuments(prev => ({
+                ...prev,
+                [window.id]: docs
+              }));
+            }}
+          />
+        );
       default:
         return null;
     }
@@ -981,10 +1128,10 @@ ${isFormattingAction
         <div className="relative">
           <button
             onClick={() => setShowAddMenu(!showAddMenu)}
-            className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-xl flex items-center justify-center hover:from-blue-700 hover:to-purple-700 transition-all hover:scale-110 active:scale-95"
+            className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg flex items-center justify-center hover:from-blue-700 hover:to-purple-700 transition-all hover:scale-110 active:scale-95"
             title="Add Window"
           >
-            <Plus className="h-6 w-6" />
+            <Plus className="h-5 w-5" />
           </button>
 
           {showAddMenu && (
@@ -1000,12 +1147,12 @@ ${isFormattingAction
                 </div>
               </button>
               <button
-                onClick={() => createWindow('document', 'Document Viewer')}
+                onClick={() => createWindow('document', 'References')}
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-green-50 transition-colors border-b border-gray-100"
               >
                 <FileText className="h-5 w-5 text-green-600" />
                 <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-900">Document</p>
+                  <p className="text-sm font-semibold text-gray-900">References</p>
                   <p className="text-xs text-gray-600">View uploaded file</p>
                 </div>
               </button>
@@ -1031,12 +1178,22 @@ ${isFormattingAction
               </button>
               <button
                 onClick={() => createWindow('web', 'Web Search')}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-purple-50 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-purple-50 transition-colors border-b border-gray-100"
               >
                 <Globe className="h-5 w-5 text-purple-600" />
                 <div className="text-left">
                   <p className="text-sm font-semibold text-gray-900">Web Browser</p>
                   <p className="text-xs text-gray-600">Browse the web with built-in navigation</p>
+                </div>
+              </button>
+              <button
+                onClick={() => createWindow('library', 'Document Library')}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors"
+              >
+                <Library className="h-5 w-5 text-indigo-600" />
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-gray-900">Document Library</p>
+                  <p className="text-xs text-gray-600">Multiple docs with section selection</p>
                 </div>
               </button>
             </div>
@@ -1059,6 +1216,7 @@ ${isFormattingAction
                 {window.type === 'notes' && <StickyNote className="h-4 w-4" />}
                 {window.type === 'draft' && <Edit3 className="h-4 w-4" />}
                 {window.type === 'web' && <Globe className="h-4 w-4" />}
+                {window.type === 'library' && <Library className="h-4 w-4" />}
                 {window.title}
               </button>
             ))}

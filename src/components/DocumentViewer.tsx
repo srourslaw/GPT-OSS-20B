@@ -11,49 +11,25 @@ interface DocumentViewerProps {
 }
 
 const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onDocumentUpdate }) => {
-  console.log('🔵 DocumentViewer MOUNTED/RENDERED for:', document.name);
-  console.log('  📊 Document sections:', document.sections);
-  console.log('  📊 Sections count:', document.sections?.length || 0);
-  console.log('  📊 Section mode:', document.sectionMode);
-  console.log('  📊 Upload time:', document.uploadedAt);
-
   const wordDocContainerRef = useRef<HTMLDivElement>(null);
+  const contentContainerRef = useRef<HTMLDivElement>(null);
   const [isMaximized, setIsMaximized] = useState(false);
   const [imageZoom, setImageZoom] = useState(100);
   const [wordZoom, setWordZoom] = useState(100);
   const [excelZoom, setExcelZoom] = useState(100);
   const [activeSheet, setActiveSheet] = useState(0);
   const [showSections, setShowSections] = useState(() => {
-    const initial = !!(document.sections && document.sections.length > 0);
-    console.log('  🎬 Initial showSections state:', initial);
-    return initial;
+    return !!(document.sections && document.sections.length > 0);
   });
   const [sectionMode, setSectionMode] = useState<'full' | 'selected'>(document.sectionMode || 'full');
 
   const hasSections = !!(document.sections && document.sections.length > 0);
-  console.log('  ✅ hasSections computed:', hasSections);
 
   // Sync section mode when document changes
   useEffect(() => {
-    console.log('🔄 useEffect TRIGGERED!');
-    console.log('  📄 Document name:', document.name);
-    console.log('  📄 Has sections:', hasSections);
-    console.log('  📄 Document.sections:', document.sections);
-    console.log('  📄 Current showSections state:', showSections);
-    console.log('  📄 About to set showSections to:', hasSections);
-
     setSectionMode(document.sectionMode || 'full');
     setShowSections(hasSections);
-
-    console.log('  ✅ State update commands issued');
   }, [document.name, document.uploadedAt, hasSections]); // Re-run when document changes
-
-  // Component unmount
-  useEffect(() => {
-    return () => {
-      console.log('🔴 DocumentViewer UNMOUNTED for:', document.name);
-    };
-  }, [document.name]);
 
   // Zoom handlers - 10% increments for fine control
   const handleImageZoomIn = () => setImageZoom(prev => Math.min(prev + 10, 400));
@@ -89,6 +65,57 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onDocumentUpd
     setSectionMode(newMode);
     if (onDocumentUpdate) {
       onDocumentUpdate({ ...document, sectionMode: newMode });
+    }
+  };
+
+  // Handle section click - scroll to section
+  const handleSectionClick = (sectionId: string) => {
+    console.log('🔍 handleSectionClick called with ID:', sectionId);
+    console.log('  📄 Document type:', {
+      isPDF: document.isPDF,
+      isWordDoc: document.isWordDoc,
+      isExcel: document.isExcel,
+      isImage: document.isImage
+    });
+
+    // For Word documents, try to find the section heading in the rendered content
+    if (document.isWordDoc && wordDocContainerRef.current) {
+      console.log('  📝 Word doc - searching for section');
+      const headings = wordDocContainerRef.current.querySelectorAll('h1, h2, h3, h4, h5, h6, p');
+      const section = document.sections?.find(s => s.id === sectionId);
+      console.log('  📝 Found section:', section?.title);
+      console.log('  📝 Total headings found:', headings.length);
+      if (section) {
+        for (const heading of Array.from(headings)) {
+          if (heading.textContent?.trim().includes(section.title.trim())) {
+            console.log('  ✅ Found matching heading, scrolling!');
+            heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // Highlight briefly
+            heading.classList.add('bg-yellow-200');
+            setTimeout(() => heading.classList.remove('bg-yellow-200'), 2000);
+            break;
+          }
+        }
+      }
+    }
+
+    // For text content with rendered sections (including PDFs in text mode)
+    if (!document.isWordDoc && !document.isExcel && contentContainerRef.current) {
+      console.log('  📄 Text content - searching for section element');
+      const element = contentContainerRef.current.querySelector(`[data-section-id="${sectionId}"]`);
+      console.log('  📄 Found element:', element);
+      if (element) {
+        console.log('  ✅ Found section element, scrolling!');
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Highlight briefly
+        element.classList.add('bg-yellow-100', 'border-l-4', 'border-yellow-400', 'pl-2', 'transition-all');
+        setTimeout(() => {
+          element.classList.remove('bg-yellow-100', 'border-l-4', 'border-yellow-400', 'pl-2');
+        }, 2000);
+      } else if (document.isPDF) {
+        // PDF is in native iframe mode - can't scroll
+        console.log('  ⚠️ PDF in native viewer mode - switch to "Sections" mode to enable scrolling');
+      }
     }
   };
 
@@ -135,152 +162,162 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onDocumentUpd
 
   return (
     <div className="w-full">
-      {/* Document Metadata with Maximize Button */}
-      <div className="border-b border-gray-200 pb-4 mb-4">
+      {/* Document Controls */}
+      <div className="border-b border-gray-200 pb-2 mb-2">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <File className="h-5 w-5 text-blue-600" />
-            <h3 className="font-medium text-gray-900">{document.name}</h3>
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <Type className="h-3 w-3" />
+            <span>{document.type.split('/').pop()}</span>
+            <span>•</span>
+            <Calendar className="h-3 w-3" />
+            <span>{document.uploadedAt.toLocaleDateString()}</span>
+            <span>•</span>
+            <span>{(document.content.length / 1000).toFixed(1)}k chars</span>
           </div>
           <button
             onClick={() => setIsMaximized(!isMaximized)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-            title={isMaximized ? "Minimize viewer" : "Maximize viewer"}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            title={isMaximized ? "Minimize" : "Maximize"}
           >
-            {isMaximized ? (
-              <>
-                <Minimize2 className="h-3.5 w-3.5" />
-                Minimize
-              </>
-            ) : (
-              <>
-                <Maximize2 className="h-3.5 w-3.5" />
-                Maximize
-              </>
-            )}
+            {isMaximized ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
           </button>
         </div>
 
-        <div className="flex items-center space-x-4 text-sm text-gray-600">
-          <div className="flex items-center space-x-1">
-            <Type className="h-4 w-4" />
-            <span>{document.type}</span>
-          </div>
-          <div className="flex items-center space-x-1">
-            <Calendar className="h-4 w-4" />
-            <span>{document.uploadedAt.toLocaleDateString()}</span>
-          </div>
-        </div>
-
-        <div className="mt-2 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Content length: {document.content.length.toLocaleString()} characters
-          </div>
-
-          {/* Section Controls */}
-          {(() => {
-            console.log('🎛️ TOGGLE BUTTONS CHECK:');
-            console.log('  📊 hasSections:', hasSections);
-            console.log('  📊 Will render toggle buttons:', hasSections ? 'YES ✅' : 'NO ❌');
-            return null;
-          })()}
-          {hasSections && (
-            <div className="flex items-center gap-2">
-              {/* Section Mode Toggle */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => {
-                    console.log('🔘 Full Document button clicked');
-                    setSectionMode('full');
-                    if (onDocumentUpdate) {
-                      onDocumentUpdate({ ...document, sectionMode: 'full' });
-                      console.log('✅ Document updated to full mode');
-                    }
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                    sectionMode === 'full'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <FileText className="h-3.5 w-3.5 inline mr-1" />
-                  Full Document
-                </button>
-                <button
-                  onClick={() => {
-                    console.log('🔘 Sections button clicked');
-                    setSectionMode('selected');
-                    if (onDocumentUpdate) {
-                      onDocumentUpdate({ ...document, sectionMode: 'selected' });
-                      console.log('✅ Document updated to selected mode');
-                    }
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                    sectionMode === 'selected'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <List className="h-3.5 w-3.5 inline mr-1" />
-                  Sections ({countSelectedSections(document.sections!).selected}/{countSelectedSections(document.sections!).total})
-                </button>
-              </div>
-
-              {/* Toggle Sections Sidebar */}
+        {hasSections && (
+          <div className="flex items-center justify-between gap-2">
+            {/* Section Mode Toggle */}
+            <div className="flex items-center bg-gray-100 rounded p-0.5">
               <button
-                onClick={() => setShowSections(!showSections)}
-                className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                onClick={() => {
+                  setSectionMode('full');
+                  if (onDocumentUpdate) {
+                    onDocumentUpdate({ ...document, sectionMode: 'full' });
+                  }
+                }}
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  sectionMode === 'full'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
               >
-                {showSections ? 'Hide' : 'Show'} Sections
+                <FileText className="h-3 w-3 inline mr-0.5" />
+                Full
+              </button>
+              <button
+                onClick={() => {
+                  setSectionMode('selected');
+                  if (onDocumentUpdate) {
+                    onDocumentUpdate({ ...document, sectionMode: 'selected' });
+                  }
+                }}
+                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                  sectionMode === 'selected'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <List className="h-3 w-3 inline mr-0.5" />
+                Sections ({countSelectedSections(document.sections!).selected}/{countSelectedSections(document.sections!).total})
               </button>
             </div>
-          )}
-        </div>
+
+            {/* Toggle Sections Sidebar */}
+            <button
+              onClick={() => setShowSections(!showSections)}
+              className="px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            >
+              {showSections ? 'Hide' : 'Show'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Content Area with Sections Sidebar */}
-      <div className="flex gap-4">
+      <div className="flex gap-2">
         {/* Sections Sidebar */}
-        {(() => {
-          console.log('🎨 RENDER TIME CHECK:');
-          console.log('  📊 hasSections:', hasSections);
-          console.log('  📊 showSections:', showSections);
-          console.log('  📊 Condition (hasSections && showSections):', hasSections && showSections);
-          console.log('  📊 Will render sidebar:', hasSections && showSections ? 'YES ✅' : 'NO ❌');
-          return null;
-        })()}
         {hasSections && showSections && (
           <div className="w-64 flex-shrink-0 border border-gray-200 rounded-lg bg-white overflow-hidden">
             <SectionSelector
               sections={document.sections!}
               onSectionsChange={handleSectionsChange}
+              onSectionClick={handleSectionClick}
             />
           </div>
         )}
 
         {/* Document Content */}
         <div
+          ref={contentContainerRef}
           className={`flex-1 document-viewer overflow-y-auto transition-all duration-300 ${
             isMaximized ? 'max-h-[80vh]' : 'max-h-[50vh]'
           }`}
         >
         {/* Show PDF viewer for PDF files */}
         {document.isPDF && document.fileBlob && (
-          <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-            <div className="px-3 py-2 bg-blue-50 border-b border-blue-200">
-              <p className="text-xs text-blue-800 font-medium flex items-center gap-1.5">
-                <span className="text-base">📄</span>
-                <span>PDF Document</span>
-              </p>
-            </div>
-            <iframe
-              src={document.fileBlob}
-              className={`w-full border-0 transition-all duration-300 ${
-                isMaximized ? 'h-[75vh]' : 'h-[45vh]'
-              }`}
-              title={document.name}
-            />
-          </div>
+          <>
+            {/* Show extracted text with sections if in section mode and has sections */}
+            {hasSections && sectionMode === 'selected' ? (
+              <div className="border border-gray-200 rounded-lg overflow-hidden bg-white p-4">
+                <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-xs text-blue-800 font-medium flex items-center gap-1.5">
+                    <span className="text-base">📄</span>
+                    <span>PDF Text Content (Extracted)</span>
+                  </p>
+                </div>
+                <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed">
+                  {document.sections ? (
+                    <div>
+                      {(() => {
+                        const renderSectionContent = (sections: DocumentSection[]): JSX.Element[] => {
+                          const elements: JSX.Element[] = [];
+                          sections.forEach(section => {
+                            elements.push(
+                              <div
+                                key={section.id}
+                                data-section-id={section.id}
+                                className="scroll-mt-4 mb-6"
+                              >
+                                <h3 className="font-bold text-base text-gray-900 mb-2 pb-1 border-b-2 border-blue-300">
+                                  {section.title}
+                                </h3>
+                                <div className="text-sm text-gray-800 pl-2">
+                                  {section.content}
+                                </div>
+                              </div>
+                            );
+                            if (section.children && section.children.length > 0) {
+                              elements.push(...renderSectionContent(section.children));
+                            }
+                          });
+                          return elements;
+                        };
+                        return renderSectionContent(document.sections);
+                      })()}
+                    </div>
+                  ) : (
+                    document.content
+                  )}
+                </div>
+              </div>
+            ) : (
+              // Show native PDF viewer
+              <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                <div className="px-3 py-2 bg-blue-50 border-b border-blue-200">
+                  <p className="text-xs text-blue-800 font-medium flex items-center gap-1.5">
+                    <span className="text-base">📄</span>
+                    <span>PDF Document (Native Viewer)</span>
+                  </p>
+                </div>
+                <iframe
+                  src={document.fileBlob}
+                  className={`w-full border-0 transition-all duration-300 ${
+                    isMaximized ? 'h-[75vh]' : 'h-[45vh]'
+                  }`}
+                  title={document.name}
+                />
+              </div>
+            )}
+          </>
         )}
 
         {/* Show image preview if it's an image file */}
@@ -548,7 +585,40 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onDocumentUpd
         {/* Show plain text content for other formats or if native view not available */}
         {!document.isPDF && !document.isWordDoc && !document.isExcel && document.content ? (
           <div className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed pr-2">
-            {document.content}
+            {hasSections && document.sections ? (
+              // Render sections with IDs for scrolling
+              <div>
+                {(() => {
+                  const renderSectionContent = (sections: DocumentSection[]): JSX.Element[] => {
+                    const elements: JSX.Element[] = [];
+                    sections.forEach(section => {
+                      elements.push(
+                        <div
+                          key={section.id}
+                          data-section-id={section.id}
+                          className="scroll-mt-4"
+                        >
+                          <h3 className="font-bold text-base text-gray-900 mb-2 mt-4 border-b pb-1">
+                            {section.title}
+                          </h3>
+                          <div className="text-sm text-gray-800">
+                            {section.content}
+                          </div>
+                        </div>
+                      );
+                      if (section.children && section.children.length > 0) {
+                        elements.push(...renderSectionContent(section.children));
+                      }
+                    });
+                    return elements;
+                  };
+                  return renderSectionContent(document.sections);
+                })()}
+              </div>
+            ) : (
+              // Fallback to plain content if no sections
+              document.content
+            )}
           </div>
         ) : null}
 
@@ -564,12 +634,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, onDocumentUpd
       </div>
 
       {/* Actions */}
-      <div className="mt-4 pt-4 border-t border-gray-200">
+      <div className="mt-2 pt-2 border-t border-gray-200">
         <button
           onClick={() => navigator.clipboard.writeText(document.content)}
-          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+          className="text-xs text-blue-600 hover:text-blue-700 font-medium hover:bg-blue-50 px-2 py-1 rounded transition-colors"
         >
-          Copy content to clipboard
+          Copy content
         </button>
       </div>
     </div>
