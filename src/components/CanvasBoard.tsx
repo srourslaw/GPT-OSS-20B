@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, MessageSquare, FileText, StickyNote, Globe, Layout, Edit3, Search, ExternalLink, RefreshCw, Home, ArrowLeft, ArrowRight, X, Library } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Plus, MessageSquare, FileText, StickyNote, Globe, Layout, Edit3, Search, ExternalLink, RefreshCw, Home, ArrowLeft, ArrowRight, X, Library, Menu } from 'lucide-react';
 import CanvasWindowComponent from './CanvasWindow';
 import ChatInterface from './ChatInterface';
+import ChatHistory from './ChatHistory';
 import DocumentViewer from './DocumentViewer';
 import FileUpload from './FileUpload';
 import DraftEditor from './DraftEditor';
@@ -10,11 +12,20 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github.css';
-import { CanvasWindow, WindowType, Document, ChatMessage, AIModel, LibraryDocument } from '../types';
+import { CanvasWindow, WindowType, Document, ChatMessage, AIModel, LibraryDocument, ChatSession } from '../types';
 import { sendMessage } from '../services/aiService';
 import { getSelectedSectionsContent } from '../utils/sectionExtractor';
 import { exportToPDF, exportToWord, exportToHTML } from '../utils/exportUtils';
 import { markdownToHtml } from '../utils/markdownUtils';
+import {
+  createNewSession,
+  updateSessionTitle,
+  saveChatHistory,
+  loadChatHistory,
+  deleteSession as deleteSessionHelper,
+  togglePinSession as togglePinHelper,
+  getOrCreateActiveSession,
+} from '../utils/chatHistoryHelpers';
 
 interface CanvasBoardProps {
   document: Document | null;
@@ -31,6 +42,7 @@ interface CanvasBoardProps {
   onCanvasNotesChange: (notes: string) => void;
   canvasChatMessages: ChatMessage[];
   onCanvasChatMessagesChange: (messages: ChatMessage[]) => void;
+  onReturnHome: () => void;
 }
 
 const CanvasBoard: React.FC<CanvasBoardProps> = ({
@@ -47,11 +59,13 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
   canvasNotes: persistedNotes,
   onCanvasNotesChange,
   canvasChatMessages: persistedChatMessages,
-  onCanvasChatMessagesChange
+  onCanvasChatMessagesChange,
+  onReturnHome
 }) => {
   const [windows, setWindows] = useState<CanvasWindow[]>(persistedWindows);
   const [nextZIndex, setNextZIndex] = useState(persistedWindows.length > 0 ? Math.max(...persistedWindows.map((w: any) => w.zIndex)) + 1 : 1);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showToolbar, setShowToolbar] = useState(false); // Hidden by default
 
   // Shared state across canvas windows - use persisted state
   const [canvasDocument, setCanvasDocument] = useState<Document | null>(persistedDocument);
@@ -74,6 +88,15 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
 
   // Library state - each library window has its own collection of documents
   const [libraryDocuments, setLibraryDocuments] = useState<{ [windowId: string]: LibraryDocument[] }>({});
+
+  // Chat history state - each chat window has its own chat history
+  const [chatHistories, setChatHistories] = useState<{
+    [windowId: string]: {
+      sessions: ChatSession[];
+      activeSessionId: string | null;
+      isHistoryOpen: boolean;
+    };
+  }>({});
 
   // Sync local state with parent
   React.useEffect(() => {
@@ -233,6 +256,41 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
     const draftWindows = windows.filter(w => w.type === 'draft');
     const draftKeywords = ['draft', 'write to draft', 'in the draft', 'to draft window', 'output window', 'write in draft', 'add to draft', 'put in draft'];
     const shouldWriteToDraft = draftWindows.length > 0 && draftKeywords.some(keyword => message.toLowerCase().includes(keyword));
+
+    // Check if user wants to clear the draft before writing
+    const clearKeywords = ['clear', 'remove', 'delete', 'erase', 'start fresh', 'start new'];
+    const shouldClearDraft = shouldWriteToDraft && clearKeywords.some(keyword => message.toLowerCase().includes(keyword));
+
+    // Check if user ONLY wants to clear (no new content to write)
+    const writingKeywords = ['write', 'add', 'create', 'generate', 'make', 'summarize', 'explain', 'tell', 'describe', 'list'];
+    const isOnlyClearingDraft = shouldClearDraft && !writingKeywords.some(keyword => message.toLowerCase().includes(keyword));
+
+    // If user only wants to clear the draft (no new content), just clear it
+    if (isOnlyClearingDraft && draftWindows.length > 0) {
+      const targetDraftWindow = draftWindows[draftWindows.length - 1];
+
+      // Clear the draft content
+      setDraftContents(prev => ({
+        ...prev,
+        [targetDraftWindow.id]: ''
+      }));
+      setDraftDisplayContent(prev => ({
+        ...prev,
+        [targetDraftWindow.id]: ''
+      }));
+
+      // Add confirmation message to chat
+      const confirmMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        text: `✅ Cleared "${targetDraftWindow.title}" window.`,
+        isUser: false,
+        timestamp: new Date(),
+        aiModel: selectedModel.name
+      };
+      setChatMessages([...updatedMessages, confirmMessage]);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       // Check if Document Library has selections first - if yes, prioritize library content ONLY
@@ -456,7 +514,8 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
 
         // Get existing content and append new content with a section separator
         // Convert markdown to HTML for proper rendering in TipTap editor
-        const existingContent = draftContents[targetDraftWindow.id] || '';
+        // If user wants to clear the draft, start with empty content instead of existing
+        const existingContent = shouldClearDraft ? '' : (draftContents[targetDraftWindow.id] || '');
         const separator = existingContent ? '<hr class="my-4" />' : '';
 
         // Defensive check: ensure aiResponse.text is a string
@@ -489,7 +548,9 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
         // Add confirmation message to chat
         const confirmMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
-          text: `✅ Writing to "${targetDraftWindow.title}" window...`,
+          text: shouldClearDraft
+            ? `✅ Clearing and writing to "${targetDraftWindow.title}" window...`
+            : `✅ Writing to "${targetDraftWindow.title}" window...`,
           isUser: false,
           timestamp: new Date(),
           aiModel: selectedModel.name
@@ -561,6 +622,34 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
     setWindows([...windows, newWindow]);
     setNextZIndex(nextZIndex + 1);
     setShowAddMenu(false);
+
+    // Initialize chat history for new chat windows
+    if (type === 'chat') {
+      const { sessions, activeSessionId } = loadChatHistory(newWindow.id);
+      if (sessions.length === 0) {
+        // Create initial session
+        const initialSession = createNewSession();
+        setChatHistories(prev => ({
+          ...prev,
+          [newWindow.id]: {
+            sessions: [initialSession],
+            activeSessionId: initialSession.id,
+            isHistoryOpen: false,
+          },
+        }));
+        saveChatHistory(newWindow.id, [initialSession], initialSession.id);
+      } else {
+        // Load existing sessions
+        setChatHistories(prev => ({
+          ...prev,
+          [newWindow.id]: {
+            sessions,
+            activeSessionId,
+            isHistoryOpen: false,
+          },
+        }));
+      }
+    }
   };
 
   // Close a window
@@ -580,6 +669,419 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
     setWindows(windows.map(w =>
       w.id === id ? { ...w, isMaximized: !w.isMaximized } : w
     ));
+  };
+
+  // Chat History Handlers
+  const handleNewChatSession = (windowId: string) => {
+    const history = chatHistories[windowId];
+    if (!history) return;
+
+    const newSession = createNewSession();
+    const updatedSessions = [...history.sessions, newSession];
+
+    setChatHistories(prev => ({
+      ...prev,
+      [windowId]: {
+        ...prev[windowId],
+        sessions: updatedSessions,
+        activeSessionId: newSession.id,
+      },
+    }));
+
+    saveChatHistory(windowId, updatedSessions, newSession.id);
+  };
+
+  const handleSessionSelect = (windowId: string, sessionId: string) => {
+    setChatHistories(prev => ({
+      ...prev,
+      [windowId]: {
+        ...prev[windowId],
+        activeSessionId: sessionId,
+      },
+    }));
+
+    const history = chatHistories[windowId];
+    if (history) {
+      saveChatHistory(windowId, history.sessions, sessionId);
+    }
+  };
+
+  const handleDeleteSession = (windowId: string, sessionId: string) => {
+    const history = chatHistories[windowId];
+    if (!history) return;
+
+    const updatedSessions = deleteSessionHelper(history.sessions, sessionId);
+    let newActiveSessionId = history.activeSessionId;
+
+    // If we deleted the active session, switch to another one
+    if (sessionId === history.activeSessionId) {
+      if (updatedSessions.length > 0) {
+        newActiveSessionId = updatedSessions[0].id;
+      } else {
+        // No sessions left, create a new one
+        const newSession = createNewSession();
+        updatedSessions.push(newSession);
+        newActiveSessionId = newSession.id;
+      }
+    }
+
+    setChatHistories(prev => ({
+      ...prev,
+      [windowId]: {
+        ...prev[windowId],
+        sessions: updatedSessions,
+        activeSessionId: newActiveSessionId,
+      },
+    }));
+
+    saveChatHistory(windowId, updatedSessions, newActiveSessionId);
+  };
+
+  const handlePinSession = (windowId: string, sessionId: string) => {
+    const history = chatHistories[windowId];
+    if (!history) return;
+
+    const updatedSessions = togglePinHelper(history.sessions, sessionId);
+
+    setChatHistories(prev => ({
+      ...prev,
+      [windowId]: {
+        ...prev[windowId],
+        sessions: updatedSessions,
+      },
+    }));
+
+    saveChatHistory(windowId, updatedSessions, history.activeSessionId);
+  };
+
+  const handleToggleChatHistory = (windowId: string) => {
+    setChatHistories(prev => ({
+      ...prev,
+      [windowId]: {
+        ...prev[windowId],
+        isHistoryOpen: !prev[windowId]?.isHistoryOpen,
+      },
+    }));
+  };
+
+  // Send message in a specific chat window
+  const handleChatWindowSendMessage = async (windowId: string, message: string) => {
+    console.log('🔵 handleChatWindowSendMessage called', { windowId, message });
+    const history = chatHistories[windowId];
+    console.log('🔵 Chat history:', history);
+    if (!history || !history.activeSessionId) {
+      console.log('❌ No history or active session ID');
+      return;
+    }
+
+    const activeSession = history.sessions.find(s => s.id === history.activeSessionId);
+    console.log('🔵 Active session:', activeSession);
+    if (!activeSession) {
+      console.log('❌ No active session found');
+      return;
+    }
+
+    // Create user message
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: message,
+      isUser: true,
+      timestamp: new Date(),
+    };
+
+    // Update session with user message
+    let updatedSession = {
+      ...activeSession,
+      messages: [...activeSession.messages, userMessage],
+      updatedAt: new Date(),
+    };
+
+    // Auto-generate title from first user message
+    updatedSession = updateSessionTitle(updatedSession);
+
+    // Update sessions in state
+    const updatedSessions = history.sessions.map(s =>
+      s.id === activeSession.id ? updatedSession : s
+    );
+
+    setChatHistories(prev => ({
+      ...prev,
+      [windowId]: {
+        ...prev[windowId],
+        sessions: updatedSessions,
+      },
+    }));
+
+    // Same context building logic as handleCanvasSendMessage
+    setIsLoading(true);
+
+    // Check if user wants to write to a draft window
+    const draftWindows = windows.filter(w => w.type === 'draft');
+    const draftKeywords = ['draft', 'write to draft', 'in the draft', 'to draft window', 'output window', 'write in draft', 'add to draft', 'put in draft'];
+    const shouldWriteToDraft = draftWindows.length > 0 && draftKeywords.some(keyword => message.toLowerCase().includes(keyword));
+
+    // Check if user wants to clear the draft before writing
+    const clearKeywords = ['clear', 'remove', 'delete', 'erase', 'start fresh', 'start new'];
+    const shouldClearDraft = shouldWriteToDraft && clearKeywords.some(keyword => message.toLowerCase().includes(keyword));
+
+    // Check if user ONLY wants to clear (no new content to write)
+    const writingKeywords = ['write', 'add', 'create', 'generate', 'make', 'summarize', 'explain', 'tell', 'describe', 'list'];
+    const isOnlyClearingDraft = shouldClearDraft && !writingKeywords.some(keyword => message.toLowerCase().includes(keyword));
+
+    // If user only wants to clear the draft (no new content), just clear it
+    if (isOnlyClearingDraft && draftWindows.length > 0) {
+      const targetDraftWindow = draftWindows[draftWindows.length - 1];
+
+      // Clear the draft content
+      setDraftContents(prev => ({
+        ...prev,
+        [targetDraftWindow.id]: ''
+      }));
+      setDraftDisplayContent(prev => ({
+        ...prev,
+        [targetDraftWindow.id]: ''
+      }));
+
+      // Add confirmation message to chat session
+      const confirmMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        text: `✅ Cleared "${targetDraftWindow.title}" window.`,
+        isUser: false,
+        timestamp: new Date(),
+        aiModel: selectedModel.name,
+      };
+
+      // Update session with confirmation message
+      const sessionWithConfirm = {
+        ...updatedSession,
+        messages: [...updatedSession.messages, confirmMessage],
+        updatedAt: new Date(),
+      };
+
+      const sessionsWithConfirm = updatedSessions.map(s =>
+        s.id === activeSession.id ? sessionWithConfirm : s
+      );
+
+      setChatHistories(prev => ({
+        ...prev,
+        [windowId]: {
+          ...prev[windowId],
+          sessions: sessionsWithConfirm,
+        },
+      }));
+
+      saveChatHistory(windowId, sessionsWithConfirm, history.activeSessionId);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // Check if Document Library has selections first
+      const libraryWindows = windows.filter(w => w.type === 'library');
+      let hasLibrarySelections = false;
+
+      if (libraryWindows.length > 0) {
+        hasLibrarySelections = libraryWindows.some(libWin => {
+          const docs = libraryDocuments[libWin.id] || [];
+          return docs.some(libDoc => libDoc.selectedSectionIds.length > 0);
+        });
+      }
+
+      // Build context from document and notes
+      let documentContext = '';
+
+      if (!hasLibrarySelections && canvasDocument) {
+        if (canvasDocument.sectionMode === 'selected' && canvasDocument.sections && canvasDocument.sections.length > 0) {
+          const selectedContent = getSelectedSectionsContent(canvasDocument.sections);
+          documentContext += `\n\n=== REFERENCES WINDOW (Selected Sections) ===\n${selectedContent || '[No content available for selected sections]'}`;
+        } else {
+          documentContext += `\n\n=== REFERENCES WINDOW (Full Document) ===\n${canvasDocument.content}`;
+        }
+      }
+
+      if (canvasNotes && canvasNotes.trim()) {
+        documentContext += `\n\nUser Notes:\n${canvasNotes}`;
+      }
+
+      // Add Web Search context
+      const webSearchWindows = windows.filter(w => w.type === 'web');
+      if (webSearchWindows.length > 0) {
+        const openUrls = webSearchWindows
+          .map(w => webUrls[w.id])
+          .filter(url => url && url.trim())
+          .map(url => {
+            try {
+              const urlObj = new URL(url);
+              const path = urlObj.pathname;
+              const pageName = path.split('/').filter(p => p).pop() || '';
+              const decodedName = decodeURIComponent(pageName).replace(/_/g, ' ');
+              return `- ${urlObj.hostname}${path} ${decodedName ? `(Page: "${decodedName}")` : ''}\n  Full URL: ${url}`;
+            } catch {
+              return `- ${url}`;
+            }
+          });
+
+        if (openUrls.length > 0) {
+          documentContext += `\n\n=== WEB BROWSER CONTEXT ===\nYou can see the following web page(s) that the user is currently viewing:\n${openUrls.join('\n')}\n=== END WEB CONTEXT ===`;
+        }
+      }
+
+      // Add Document Library context
+      if (libraryWindows.length > 0) {
+        let libraryContext = '\n\n=== DOCUMENT LIBRARY CONTEXT ===\n';
+        let totalSelectedSections = 0;
+
+        libraryWindows.forEach(libraryWindow => {
+          const docs = libraryDocuments[libraryWindow.id] || [];
+          docs.forEach((libDoc) => {
+            if (libDoc.selectedSectionIds.length > 0 && libDoc.document.sections) {
+              const collectSelectedSections = (sections: any[], selectedIds: string[]): void => {
+                sections.forEach(section => {
+                  if (selectedIds.includes(section.id)) {
+                    totalSelectedSections++;
+                    libraryContext += `\n[SECTION: ${section.title}]\n${section.content}\n[END SECTION]\n`;
+                  }
+                  if (section.children && section.children.length > 0) {
+                    collectSelectedSections(section.children, selectedIds);
+                  }
+                });
+              };
+              collectSelectedSections(libDoc.document.sections, libDoc.selectedSectionIds);
+            }
+          });
+        });
+
+        if (totalSelectedSections > 0) {
+          documentContext += libraryContext;
+        }
+      }
+
+      const enhancedMessage = documentContext
+        ? `${documentContext}\n\nUser Question: ${message}`
+        : message;
+
+      const hasLibraryContext = libraryWindows.some(libWin => {
+        const docs = libraryDocuments[libWin.id] || [];
+        return docs.some(libDoc => libDoc.selectedSectionIds.length > 0);
+      });
+      const chatMode = (canvasDocument || canvasNotes || webSearchWindows.length > 0 || hasLibraryContext) ? 'document' : 'general';
+
+      const aiResponse = await sendMessage(
+        enhancedMessage,
+        updatedSession.messages,
+        selectedModel.id,
+        chatMode,
+        selectedContextPreset.tokens
+      );
+      console.log('✅ AI Response received:', aiResponse);
+
+      // If user wants to write to draft and draft windows exist, write there
+      if (shouldWriteToDraft && draftWindows.length > 0) {
+        // Write to the most recent draft window with streaming effect
+        const targetDraftWindow = draftWindows[draftWindows.length - 1];
+
+        // Get existing content and append new content with a section separator
+        // If user wants to clear the draft, start with empty content instead of existing
+        const existingContent = shouldClearDraft ? '' : (draftContents[targetDraftWindow.id] || '');
+        const separator = existingContent ? '<hr class="my-4" />' : '';
+
+        // Defensive check: ensure aiResponse.text is a string
+        const responseText = typeof aiResponse.text === 'string'
+          ? aiResponse.text
+          : JSON.stringify(aiResponse.text);
+
+        const htmlContent = markdownToHtml(responseText);
+        const newContent = existingContent + separator + htmlContent;
+
+        // Start streaming animation
+        setDraftTargetContent(prev => ({
+          ...prev,
+          [targetDraftWindow.id]: newContent
+        }));
+        setDraftDisplayContent(prev => ({
+          ...prev,
+          [targetDraftWindow.id]: existingContent
+        }));
+        setDraftStreaming(prev => ({
+          ...prev,
+          [targetDraftWindow.id]: true
+        }));
+
+        // Add confirmation message to chat session
+        const confirmMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          text: shouldClearDraft
+            ? `✅ Clearing and writing to "${targetDraftWindow.title}" window...`
+            : `✅ Writing to "${targetDraftWindow.title}" window...`,
+          isUser: false,
+          timestamp: new Date(),
+          aiModel: aiResponse.model,
+        };
+
+        // Update session with confirmation message
+        const sessionWithConfirm = {
+          ...updatedSession,
+          messages: [...updatedSession.messages, confirmMessage],
+          updatedAt: new Date(),
+        };
+
+        const sessionsWithConfirm = updatedSessions.map(s =>
+          s.id === activeSession.id ? sessionWithConfirm : s
+        );
+
+        setChatHistories(prev => ({
+          ...prev,
+          [windowId]: {
+            ...prev[windowId],
+            sessions: sessionsWithConfirm,
+          },
+        }));
+
+        saveChatHistory(windowId, sessionsWithConfirm, history.activeSessionId);
+        setIsLoading(false);
+        return;
+      }
+
+      const aiMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        text: aiResponse.text,
+        isUser: false,
+        timestamp: new Date(),
+        aiModel: aiResponse.model,
+        chartData: aiResponse.chartData,
+      };
+      console.log('✅ AI Message created:', aiMessage);
+
+      // Update session with AI response
+      const finalSession = {
+        ...updatedSession,
+        messages: [...updatedSession.messages, aiMessage],
+        updatedAt: new Date(),
+      };
+      console.log('✅ Final session with AI message:', finalSession);
+
+      const finalSessions = updatedSessions.map(s =>
+        s.id === activeSession.id ? finalSession : s
+      );
+      console.log('✅ Final sessions array:', finalSessions);
+
+      setChatHistories(prev => ({
+        ...prev,
+        [windowId]: {
+          ...prev[windowId],
+          sessions: finalSessions,
+        },
+      }));
+      console.log('✅ Chat histories updated');
+
+      saveChatHistory(windowId, finalSessions, history.activeSessionId);
+      console.log('✅ Chat history saved to localStorage');
+      setIsLoading(false);
+      console.log('✅ Loading state set to false');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setIsLoading(false);
+    }
   };
 
   // Bring window to front
@@ -616,6 +1118,10 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
   const renderWindowContent = (window: CanvasWindow) => {
     switch (window.type) {
       case 'chat':
+        const chatHistory = chatHistories[window.id];
+        const activeSession = chatHistory?.sessions.find(s => s.id === chatHistory.activeSessionId);
+        const sessionMessages = activeSession?.messages || [];
+
         const openWebPages = windows.filter(w => w.type === 'web' && webUrls[w.id]);
 
         // Calculate library context stats
@@ -633,104 +1139,122 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
         });
 
         return (
-          <div className="h-full flex flex-col">
-            {/* Context indicator */}
-            {(canvasDocument || canvasNotes || openWebPages.length > 0 || totalLibrarySections > 0) && (
-              <div className="mx-4 mt-4 mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-800 font-medium">
-                  📎 AI has access to:
-                  {canvasDocument && <span className="ml-2">📄 References</span>}
-                  {canvasNotes && <span className="ml-2">📝 Notes</span>}
-                  {openWebPages.length > 0 && <span className="ml-2">🌐 {openWebPages.length} Web Page{openWebPages.length > 1 ? 's' : ''}</span>}
-                  {totalLibrarySections > 0 && <span className="ml-2">📚 {totalLibrarySections} section{totalLibrarySections !== 1 ? 's' : ''} from {totalLibraryDocs} doc{totalLibraryDocs !== 1 ? 's' : ''}</span>}
-                </p>
-              </div>
+          <div className="h-full flex relative">
+            {/* Chat History Sidebar */}
+            {chatHistory && (
+              <ChatHistory
+                sessions={chatHistory.sessions}
+                activeSessionId={chatHistory.activeSessionId}
+                onSessionSelect={(sessionId) => handleSessionSelect(window.id, sessionId)}
+                onNewSession={() => handleNewChatSession(window.id)}
+                onDeleteSession={(sessionId) => handleDeleteSession(window.id, sessionId)}
+                onPinSession={(sessionId) => handlePinSession(window.id, sessionId)}
+                isOpen={chatHistory.isHistoryOpen}
+                onToggle={() => handleToggleChatHistory(window.id)}
+              />
             )}
-            <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto mb-4 p-4 space-y-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
-                {chatMessages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center text-gray-500 py-12">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
-                        <MessageSquare className="h-8 w-8 text-purple-600" />
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to assist you</h3>
-                      <p className="text-sm text-gray-600">Ask me anything!</p>
-                    </div>
-                  </div>
-                ) : (
-                  chatMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`chat-message ${message.isUser ? 'user' : 'ai'}`}>
-                        {message.isUser ? (
-                          <p className="text-sm whitespace-pre-wrap" dir="auto">
-                            {message.text}
-                          </p>
-                        ) : (
-                          <div className="prose prose-sm max-w-none markdown-content" dir="auto">
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm]}
-                              rehypePlugins={[rehypeHighlight]}
-                              components={markdownComponents}
-                            >
-                              {message.text}
-                            </ReactMarkdown>
-                          </div>
-                        )}
-                        <span className="text-xs opacity-70 mt-2 block">
-                          {message.timestamp.toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                          })}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="chat-message ai">
-                      <div className="flex space-x-1.5">
-                        <div className="w-2 h-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
-                        <div className="w-2 h-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
 
-              {/* Input Form */}
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const input = e.currentTarget.elements.namedItem('message') as HTMLInputElement;
-                if (input.value.trim()) {
-                  handleCanvasSendMessage(input.value.trim());
-                  input.value = '';
-                }
-              }} className="flex-shrink-0">
-                <div className="flex space-x-3">
-                  <input
-                    type="text"
-                    name="message"
-                    placeholder="Ask me anything..."
-                    disabled={isLoading}
-                    className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all shadow-sm hover:border-gray-400 text-sm"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="px-5 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg flex items-center gap-2 font-medium"
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                  </button>
+            {/* Main Chat Area */}
+            <div className={`flex-1 flex flex-col transition-all duration-300 ${chatHistory?.isHistoryOpen ? 'ml-80' : 'ml-0'}`}>
+              {/* Context indicator */}
+              {(canvasDocument || canvasNotes || openWebPages.length > 0 || totalLibrarySections > 0) && (
+                <div className="mx-4 mt-4 mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs text-blue-800 font-medium">
+                    📎 AI has access to:
+                    {canvasDocument && <span className="ml-2">📄 References</span>}
+                    {canvasNotes && <span className="ml-2">📝 Notes</span>}
+                    {openWebPages.length > 0 && <span className="ml-2">🌐 {openWebPages.length} Web Page{openWebPages.length > 1 ? 's' : ''}</span>}
+                    {totalLibrarySections > 0 && <span className="ml-2">📚 {totalLibrarySections} section{totalLibrarySections !== 1 ? 's' : ''} from {totalLibraryDocs} doc{totalLibraryDocs !== 1 ? 's' : ''}</span>}
+                  </p>
                 </div>
-              </form>
+              )}
+
+              <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto mb-4 p-4 space-y-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+                  {sessionMessages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center text-gray-500 py-12">
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
+                          <MessageSquare className="h-8 w-8 text-purple-600" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to assist you</h3>
+                        <p className="text-sm text-gray-600">Ask me anything!</p>
+                      </div>
+                    </div>
+                  ) : (
+                    sessionMessages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`chat-message ${message.isUser ? 'user' : 'ai'}`}>
+                          {message.isUser ? (
+                            <p className="text-sm whitespace-pre-wrap" dir="auto">
+                              {message.text}
+                            </p>
+                          ) : (
+                            <div className="prose prose-sm max-w-none markdown-content" dir="auto">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeHighlight]}
+                                components={markdownComponents}
+                              >
+                                {message.text}
+                              </ReactMarkdown>
+                            </div>
+                          )}
+                          <span className="text-xs opacity-70 mt-2 block">
+                            {message.timestamp.toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {isLoading && (
+                    <div className="flex justify-start">
+                      <div className="chat-message ai">
+                        <div className="flex space-x-1.5">
+                          <div className="w-2 h-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
+                          <div className="w-2 h-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Input Form */}
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const input = e.currentTarget.elements.namedItem('message') as HTMLInputElement;
+                  if (input.value.trim()) {
+                    handleChatWindowSendMessage(window.id, input.value.trim());
+                    input.value = '';
+                  }
+                }} className="flex-shrink-0">
+                  <div className="flex space-x-3">
+                    <input
+                      type="text"
+                      name="message"
+                      placeholder="Ask me anything..."
+                      disabled={isLoading}
+                      className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all shadow-sm hover:border-gray-400 text-sm"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="px-5 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg flex items-center gap-2 font-medium"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         );
@@ -803,7 +1327,7 @@ const CanvasBoard: React.FC<CanvasBoardProps> = ({
 
         return (
           <DraftEditor
-            content={displayContent || '<p>Start writing or ask the AI to add content to the draft...</p>'}
+            content={displayContent || '<p></p>'}
             onChange={(newContent) => {
               setDraftContents(prev => ({
                 ...prev,
@@ -1110,100 +1634,142 @@ ${isFormattingAction
   };
 
   return (
-    <div className="relative w-full h-screen bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
+    <div className="relative w-full h-screen bg-gradient-to-br from-gray-100 to-gray-200">
       {/* Canvas Background Pattern */}
       <div className="absolute inset-0 opacity-10" style={{
         backgroundImage: 'radial-gradient(circle, #666 1px, transparent 1px)',
         backgroundSize: '20px 20px'
       }}></div>
 
-      {/* Toolbar - Top Right */}
-      <div className="absolute top-4 right-4 z-50 flex items-center gap-3">
-        <div className="bg-white/90 backdrop-blur-sm rounded-full shadow-lg border border-gray-200 px-4 py-2 flex items-center gap-2">
-          <Layout className="h-4 w-4 text-blue-600" />
-          <span className="text-xs font-semibold text-gray-700">Canvas Mode</span>
-        </div>
+      {/* Windows */}
+      {windows.map(window => (
+        <CanvasWindowComponent
+          key={window.id}
+          window={window}
+          onClose={() => closeWindow(window.id)}
+          onMinimize={() => minimizeWindow(window.id)}
+          onMaximize={() => toggleMaximize(window.id)}
+          onUpdatePosition={(x, y) => updatePosition(window.id, x, y)}
+          onUpdateSize={(width, height) => updateSize(window.id, width, height)}
+          onBringToFront={() => bringToFront(window.id)}
+        >
+          {renderWindowContent(window)}
+        </CanvasWindowComponent>
+      ))}
 
-
-        <div className="relative">
+      {/* Left Top Corner Toolbar (rendered via Portal to document.body to ensure it's on top) */}
+      {typeof document !== 'undefined' && document && document.body ? createPortal(
+        <div
+          className="fixed left-3 top-3 flex flex-col gap-1.5"
+          style={{ zIndex: 999999 }}
+        >
+          {/* Menu Icon - Always Visible */}
           <button
-            onClick={() => setShowAddMenu(!showAddMenu)}
-            className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg flex items-center justify-center hover:from-blue-700 hover:to-purple-700 transition-all hover:scale-110 active:scale-95"
-            title="Add Window"
+            onClick={() => setShowToolbar(!showToolbar)}
+            className="w-7 h-7 bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white rounded-md shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+            title={showToolbar ? "Hide Toolbar" : "Show Toolbar"}
           >
-            <Plus className="h-5 w-5" />
+            <Menu className="h-3.5 w-3.5" />
           </button>
 
-          {showAddMenu && (
-            <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 min-w-[240px] z-50 overflow-hidden">
+          {/* Toolbar Buttons - Toggleable */}
+          {showToolbar && (
+            <>
+              {/* Home Button */}
               <button
-                onClick={() => createWindow('chat', 'AI Chat', { messages: [] })}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100"
+                onClick={onReturnHome}
+                className="w-7 h-7 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white rounded-md shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                title="Return to Home (⌘⇧H)"
               >
-                <MessageSquare className="h-5 w-5 text-blue-600" />
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-900">Chat</p>
-                  <p className="text-xs text-gray-600">Start AI conversation</p>
-                </div>
+                <Home className="h-3.5 w-3.5" />
               </button>
-              <button
-                onClick={() => createWindow('document', 'References')}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-green-50 transition-colors border-b border-gray-100"
-              >
-                <FileText className="h-5 w-5 text-green-600" />
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-900">References</p>
-                  <p className="text-xs text-gray-600">View uploaded file</p>
-                </div>
-              </button>
-              <button
-                onClick={() => createWindow('notes', 'Notes', { notes: '' })}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-yellow-50 transition-colors border-b border-gray-100"
-              >
-                <StickyNote className="h-5 w-5 text-yellow-600" />
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-900">Notes</p>
-                  <p className="text-xs text-gray-600">Quick notes</p>
-                </div>
-              </button>
-              <button
-                onClick={() => createWindow('draft', 'Draft Output', { content: '' })}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-orange-50 transition-colors border-b border-gray-100"
-              >
-                <Edit3 className="h-5 w-5 text-orange-600" />
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-900">Draft</p>
-                  <p className="text-xs text-gray-600">AI-generated output</p>
-                </div>
-              </button>
-              <button
-                onClick={() => createWindow('web', 'Web Search')}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-purple-50 transition-colors border-b border-gray-100"
-              >
-                <Globe className="h-5 w-5 text-purple-600" />
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-900">Web Browser</p>
-                  <p className="text-xs text-gray-600">Browse the web with built-in navigation</p>
-                </div>
-              </button>
-              <button
-                onClick={() => createWindow('library', 'Document Library')}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors"
-              >
-                <Library className="h-5 w-5 text-indigo-600" />
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-900">Document Library</p>
-                  <p className="text-xs text-gray-600">Multiple docs with section selection</p>
-                </div>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Minimized Windows Taskbar */}
-      {windows.some(w => w.isMinimized) && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50">
+              {/* Plus Button with Menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowAddMenu(!showAddMenu)}
+                  className="w-7 h-7 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-md shadow-lg flex items-center justify-center hover:from-blue-700 hover:to-purple-700 transition-all hover:scale-105 active:scale-95"
+                  title="Add Window"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+
+                {showAddMenu && (
+                  <div className="absolute left-full top-0 ml-2 bg-white rounded-xl shadow-2xl border border-gray-200 min-w-[240px] z-50 overflow-hidden">
+                    <button
+                      onClick={() => createWindow('chat', 'AI Chat', { messages: [] })}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100"
+                    >
+                      <MessageSquare className="h-5 w-5 text-blue-600" />
+                      <div className="text-left">
+                        <p className="text-sm font-semibold text-gray-900">Chat</p>
+                        <p className="text-xs text-gray-600">Start AI conversation</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => createWindow('document', 'References')}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-green-50 transition-colors border-b border-gray-100"
+                    >
+                      <FileText className="h-5 w-5 text-green-600" />
+                      <div className="text-left">
+                        <p className="text-sm font-semibold text-gray-900">References</p>
+                        <p className="text-xs text-gray-600">View uploaded file</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => createWindow('notes', 'Notes', { notes: '' })}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-yellow-50 transition-colors border-b border-gray-100"
+                    >
+                      <StickyNote className="h-5 w-5 text-yellow-600" />
+                      <div className="text-left">
+                        <p className="text-sm font-semibold text-gray-900">Notes</p>
+                        <p className="text-xs text-gray-600">Quick notes</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => createWindow('draft', 'Draft Output', { content: '' })}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-orange-50 transition-colors border-b border-gray-100"
+                    >
+                      <Edit3 className="h-5 w-5 text-orange-600" />
+                      <div className="text-left">
+                        <p className="text-sm font-semibold text-gray-900">Draft</p>
+                        <p className="text-xs text-gray-600">AI-generated output</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => createWindow('web', 'Web Search')}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-purple-50 transition-colors border-b border-gray-100"
+                    >
+                      <Globe className="h-5 w-5 text-purple-600" />
+                      <div className="text-left">
+                        <p className="text-sm font-semibold text-gray-900">Web Browser</p>
+                        <p className="text-xs text-gray-600">Browse the web with built-in navigation</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => createWindow('library', 'Document Library')}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 transition-colors"
+                    >
+                      <Library className="h-5 w-5 text-indigo-600" />
+                      <div className="text-left">
+                        <p className="text-sm font-semibold text-gray-900">Document Library</p>
+                        <p className="text-xs text-gray-600">Multiple docs with section selection</p>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>,
+        document.body
+      ) : null}
+
+      {/* Minimized Windows Taskbar (rendered via Portal to document.body to ensure it's on top) */}
+      {typeof document !== 'undefined' && document && document.body && windows.some(w => w.isMinimized) ? createPortal(
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2" style={{ zIndex: 999999 }} ref={(el) => {
+          if (el) console.log('🔵 Canvas Taskbar rendered - z-index:', window.getComputedStyle(el).zIndex, 'position:', window.getComputedStyle(el).position);
+        }}>
           <div className="bg-white rounded-lg shadow-xl border border-gray-300 px-3 py-2 flex items-center gap-2">
             {windows.filter(w => w.isMinimized).map(window => (
               <button
@@ -1221,24 +1787,9 @@ ${isFormattingAction
               </button>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Windows */}
-      {windows.map(window => (
-        <CanvasWindowComponent
-          key={window.id}
-          window={window}
-          onClose={() => closeWindow(window.id)}
-          onMinimize={() => minimizeWindow(window.id)}
-          onMaximize={() => toggleMaximize(window.id)}
-          onUpdatePosition={(x, y) => updatePosition(window.id, x, y)}
-          onUpdateSize={(width, height) => updateSize(window.id, width, height)}
-          onBringToFront={() => bringToFront(window.id)}
-        >
-          {renderWindowContent(window)}
-        </CanvasWindowComponent>
-      ))}
+        </div>,
+        document.body
+      ) : null}
 
       {/* Empty State */}
       {windows.length === 0 && (

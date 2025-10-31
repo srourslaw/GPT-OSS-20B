@@ -75,6 +75,21 @@ export interface ChatModeOption {
   icon: string;
 }
 
+// Chat History Types
+export interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: Date;
+  updatedAt: Date;
+  isPinned?: boolean;
+}
+
+export interface ChatHistory {
+  sessions: ChatSession[];
+  activeSessionId: string | null;
+}
+
 // Canvas Types
 export type WindowType = 'chat' | 'document' | 'notes' | 'web' | 'draft' | 'library';
 

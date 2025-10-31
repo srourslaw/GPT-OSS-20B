@@ -92,8 +92,10 @@ function App() {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     isDraggingRef.current = true;
-    window.document.body.style.cursor = 'col-resize';
-    window.document.body.style.userSelect = 'none';
+    if (typeof window !== 'undefined' && window.document?.body) {
+      window.document.body.style.cursor = 'col-resize';
+      window.document.body.style.userSelect = 'none';
+    }
   };
 
   useEffect(() => {
@@ -114,8 +116,10 @@ function App() {
       if (!isDraggingRef.current || !leftPanelRef.current) return;
 
       isDraggingRef.current = false;
-      window.document.body.style.cursor = '';
-      window.document.body.style.userSelect = '';
+      if (typeof window !== 'undefined' && window.document?.body) {
+        window.document.body.style.cursor = '';
+        window.document.body.style.userSelect = '';
+      }
 
       // Save final width to state
       const currentWidth = parseInt(leftPanelRef.current.style.width);
@@ -394,16 +398,16 @@ function App() {
         </div>
       ) : (
         <>
-          {/* Home Button - Floating Bottom Left (icon only) */}
-          <div className="fixed bottom-6 left-6 z-50">
+          {/* Home Button for Standard Mode */}
+          {viewMode === 'standard' && (
             <button
               onClick={() => setViewMode('landing')}
-              className="group p-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-lg hover:shadow-xl hover:shadow-purple-500/30 transition-all duration-300 hover:scale-110"
+              className="fixed bottom-6 left-6 z-50 p-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-lg hover:shadow-xl hover:shadow-purple-500/30 transition-all duration-300 hover:scale-110"
               title="Return to Home (⌘⇧H)"
             >
               <Home className="h-5 w-5" />
             </button>
-          </div>
+          )}
 
           {/* Canvas Mode */}
           {viewMode === 'canvas' ? (
@@ -422,6 +426,7 @@ function App() {
           onCanvasNotesChange={setCanvasNotes}
           canvasChatMessages={canvasChatMessages}
           onCanvasChatMessagesChange={setCanvasChatMessages}
+          onReturnHome={() => setViewMode('landing')}
         />
       ) : (
         <>

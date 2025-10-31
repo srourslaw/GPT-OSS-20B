@@ -110,14 +110,14 @@ const CanvasWindow: React.FC<CanvasWindowProps> = ({
 
   const style: React.CSSProperties = windowData.isMaximized
     ? {
-        position: 'absolute',
+        position: 'fixed', // Use fixed to match portal stacking context
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        width: '100%',
-        height: '100%',
-        zIndex: windowData.zIndex
+        width: '100vw',
+        height: '100vh',
+        zIndex: 10000 // Fixed z-index for maximized windows, always below UI controls (999999)
       }
     : {
         position: 'absolute',
@@ -127,6 +127,12 @@ const CanvasWindow: React.FC<CanvasWindowProps> = ({
         height: windowData.height,
         zIndex: windowData.zIndex
       };
+
+  // Debug logging
+  useEffect(() => {
+    const actualZIndex = windowData.isMaximized ? 10000 : windowData.zIndex;
+    console.log(`🟡 Window "${windowData.title}" - isMaximized:`, windowData.isMaximized, 'z-index:', actualZIndex);
+  }, [windowData.isMaximized, windowData.zIndex, windowData.title]);
 
   return (
     <div
