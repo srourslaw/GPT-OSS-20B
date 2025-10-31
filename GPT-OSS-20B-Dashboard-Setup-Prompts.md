@@ -544,3 +544,306 @@ These 5 simplified setup prompts will create a focused GPT-OSS-20B dashboard:
 **Expected Timeline:** 2-3 days for complete implementation
 
 Each prompt builds on the previous one, and Claude Code will have full context through GitHub commits. The final result will be a working dashboard deployed on Vercel for testing your GPT-OSS-20B API integration.
+
+---
+
+## Prompt 6: Canvas Mode & Advanced Features
+
+```
+Implement Canvas Mode with multi-window system, chat history, and advanced UI controls.
+
+## Step 1: Canvas Mode Implementation
+
+### Overview
+Canvas Mode provides a flexible workspace where users can open multiple windows simultaneously:
+- Chat windows with AI conversation
+- Reference windows for document viewing
+- Notes windows for taking notes
+- Draft windows for writing
+- Web browser windows for research
+- Document library for file management
+
+### Core Components
+
+#### components/CanvasBoard.tsx
+Main canvas workspace component with:
+- Multi-window management system
+- Window positioning and resizing
+- Z-index management for window layering
+- Drag-and-drop window movement
+- Window minimization/maximization
+- Toggleable toolbar for navigation
+
+#### components/CanvasWindow.tsx
+Individual window component featuring:
+- Draggable header with title
+- Minimize, maximize, and close buttons
+- Resize handles (bottom-right and bottom-left corners)
+- Window state management (normal, minimized, maximized)
+- Z-index handling for proper layering
+
+### Window Types
+Each window type has specific functionality:
+- **Chat Window**: Full AI chat interface with history
+- **Reference Window**: Document viewer for uploaded files
+- **Notes Window**: Rich text editor for note-taking
+- **Draft Window**: Advanced text editor with export capabilities
+- **Web Browser**: Embedded browser for research
+- **Document Library**: File management and organization
+
+## Step 2: Chat History System
+
+### Architecture
+Implement persistent chat session management:
+
+#### Key Features
+- Multiple chat sessions per window
+- Auto-generated session titles from first message
+- Session pinning for important conversations
+- Time-based session grouping (Today, Yesterday, Previous 7/30 Days, Older)
+- Search functionality across all sessions
+- Session metadata (message count, last updated timestamp)
+
+#### Implementation Files
+
+**components/ChatHistory.tsx**
+- Sidebar with session list
+- Search bar for filtering sessions
+- Pin/unpin functionality
+- Delete session with confirmation
+- Session selection and creation
+- Responsive time-based grouping
+
+**utils/chatHistoryHelpers.ts**
+Helper functions for:
+- `generateChatTitle(firstMessage)` - Create meaningful titles
+- `createNewSession()` - Initialize new chat sessions
+- `updateSessionTitle(session)` - Auto-update based on first message
+- `saveChatHistory(windowId, sessions, activeSessionId)` - Persist to localStorage
+- `loadChatHistory(windowId)` - Restore from localStorage
+- `deleteSession(sessions, sessionId)` - Remove sessions
+- `togglePinSession(sessions, sessionId)` - Pin/unpin functionality
+
+#### Types Enhancement
+```typescript
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: Date;
+  updatedAt: Date;
+  isPinned: boolean;
+}
+```
+
+## Step 3: UI Controls & Stacking Context Solution
+
+### Problem: Maximized Windows Overlapping Controls
+When canvas windows are maximized, they can cover UI controls (Home button, add menu, etc.)
+
+### Solution: React Portals + Position Fixed
+Implement a two-part solution:
+
+#### Part 1: React Portals for UI Controls
+Use React Portals to render UI controls at the document.body level:
+```typescript
+import { createPortal } from 'react-dom';
+
+{typeof document !== 'undefined' && document && document.body ? createPortal(
+  <div className="fixed" style={{ zIndex: 999999 }}>
+    {/* UI Controls */}
+  </div>,
+  document.body
+) : null}
+```
+
+**Important**: Always check for document existence for SSR compatibility:
+- Check `typeof document !== 'undefined'`
+- Check `document` is not null
+- Check `document.body` exists
+- Use ternary operator (`? :`) not AND operator (`&&`) to prevent parameter evaluation
+
+#### Part 2: Position Fixed for Maximized Windows
+Change maximized windows from `position: absolute` to `position: fixed`:
+```typescript
+const style: React.CSSProperties = windowData.isMaximized
+  ? {
+      position: 'fixed', // Critical: matches portal stacking context
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: '100vw',
+      height: '100vh',
+      zIndex: 10000 // Below UI controls (999999)
+    }
+  : {
+      position: 'absolute',
+      left: windowData.x,
+      top: windowData.y,
+      width: windowData.width,
+      height: windowData.height,
+      zIndex: windowData.zIndex
+    };
+```
+
+**Why This Works**:
+- `position: fixed` creates stacking context relative to viewport
+- Both portals and maximized windows use same stacking context
+- z-index comparison now works correctly (999999 > 10000)
+- Without this, `position: absolute` windows create separate stacking context
+
+## Step 4: Toggleable Toolbar Implementation
+
+### Design Requirements
+- Compact size (7x7 pixels for buttons)
+- Top-left corner placement
+- Manual toggle (no auto-hide)
+- Consolidated all controls in one location
+
+### Implementation
+```typescript
+const [showToolbar, setShowToolbar] = useState(false);
+
+{typeof document !== 'undefined' && document && document.body ? createPortal(
+  <div className="fixed left-3 top-3 flex flex-col gap-1.5" style={{ zIndex: 999999 }}>
+    {/* Menu Button - Always Visible */}
+    <button onClick={() => setShowToolbar(!showToolbar)} className="w-7 h-7...">
+      <Menu className="h-3.5 w-3.5" />
+    </button>
+
+    {/* Toolbar Buttons - Toggleable */}
+    {showToolbar && (
+      <>
+        <button onClick={onReturnHome} className="w-7 h-7...">
+          <Home className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={() => setShowAddMenu(!showAddMenu)} className="w-7 h-7...">
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </>
+    )}
+  </div>,
+  document.body
+) : null}
+```
+
+### Controls Included
+- **Menu Button**: Toggle toolbar visibility (always visible)
+- **Home Button**: Return to landing page
+- **Plus Button**: Open add window menu (Chat, References, Notes, etc.)
+
+## Step 5: Standard Mode Home Button
+
+### Issue
+Standard Mode (single chat interface) also needs a Home button.
+
+### Implementation
+Add conditional Home button for Standard Mode:
+```typescript
+{viewMode === 'standard' && (
+  <button
+    onClick={() => setViewMode('landing')}
+    className="fixed bottom-6 left-6 z-50 p-3 bg-gradient-to-r from-blue-600 to-purple-600..."
+  >
+    <Home className="h-5 w-5" />
+  </button>
+)}
+```
+
+**Placement**: Bottom-left corner (doesn't conflict with chat interface)
+
+## Step 6: Testing Checklist
+
+### Canvas Mode Testing
+- [ ] Open multiple windows of different types
+- [ ] Drag windows to different positions
+- [ ] Resize windows using corner handles
+- [ ] Minimize/maximize windows
+- [ ] Close windows
+- [ ] Switch between windows (z-index ordering)
+- [ ] Maximized windows don't cover toolbar
+- [ ] Toolbar toggle works correctly
+
+### Chat History Testing
+- [ ] Create new chat sessions
+- [ ] Session titles auto-generate correctly
+- [ ] Pin/unpin sessions
+- [ ] Delete sessions with confirmation
+- [ ] Search functionality filters sessions
+- [ ] Time-based grouping updates correctly
+- [ ] Switch between sessions preserves messages
+- [ ] Chat history persists after page reload
+
+### Navigation Testing
+- [ ] Home button works in Standard Mode
+- [ ] Home button works in Canvas Mode
+- [ ] Plus menu opens/closes correctly
+- [ ] All window types can be created
+- [ ] Toolbar toggle state persists during session
+
+### Stacking Context Testing
+- [ ] UI controls always visible on top
+- [ ] Maximized windows never cover controls
+- [ ] Multiple maximized windows layer correctly
+- [ ] Portal rendering works on all browsers
+
+## Step 7: Browser Compatibility
+
+### SSR/Hydration Safety
+All portal usage must check for document existence:
+```typescript
+typeof document !== 'undefined' && document && document.body ?
+  createPortal(..., document.body) : null
+```
+
+### Cache Management
+After major UI changes:
+- Clear Vite cache: `rm -rf node_modules/.vite`
+- Restart dev server
+- Hard refresh browser (Cmd+Shift+R / Ctrl+Shift+F5)
+- Test in incognito window to bypass all caching
+
+## Step 8: Commit Strategy
+
+After implementing Canvas Mode features:
+```
+feat: add chat history system and fix canvas UI controls overlay
+
+- Implement multi-window canvas system with drag/drop and resize
+- Add chat history with sessions, search, and pin functionality
+- Fix maximized windows covering UI controls using React Portals
+- Resolve stacking context issue with position: fixed
+- Add toggleable toolbar in top-left corner
+- Restore Home button for Standard Mode
+- Persist chat sessions to localStorage per window
+```
+
+## Step 9: Performance Considerations
+
+### Optimization Tips
+- Lazy load chat history when sidebar opens
+- Debounce window resize/drag events
+- Use React.memo for window components
+- Limit number of concurrent windows (8-10 max)
+- Clean up event listeners on window close
+- Throttle localStorage saves (use debounce)
+
+### Memory Management
+- Clear old chat sessions periodically
+- Limit chat history message count per session
+- Remove event listeners on component unmount
+- Use WeakMap for window references where possible
+
+## Summary
+
+Canvas Mode provides a powerful multi-window workspace for document analysis and AI interaction. Key achievements:
+
+✅ **Multi-Window System** - Flexible workspace with multiple concurrent windows
+✅ **Chat History** - Persistent sessions with search and organization
+✅ **Stacking Context Fix** - UI controls always accessible via React Portals
+✅ **Compact Toolbar** - Space-efficient navigation in top-left corner
+✅ **Full Navigation** - Home button available in both Standard and Canvas modes
+
+The implementation uses modern React patterns (Portals, hooks) and CSS positioning techniques to create a seamless multi-window experience while maintaining proper UI layering.
+```
